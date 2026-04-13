@@ -113,3 +113,28 @@ body {
 .animate-fade-up-4 { animation: fade-up 0.7s ease 0.5s both; }
 .animate-fade-up-5 { animation: fade-up 0.7s ease 0.65s both; }
 .animate-fade-up-6 { animation: fade-up 0.7s ease 0.8s both; }
+
+@keyframes spin-cw {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes spin-ccw {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(-360deg); }
+}
+
+@keyframes center-dot-pulse {
+  0%, 100% { transform: scale(1);   opacity: 0.7; }
+  50%       { transform: scale(1.6); opacity: 1;   }
+}
+
+@keyframes bounce-dot {
+  0%, 60%, 100% { transform: translateY(0);   }
+  30%           { transform: translateY(-5px); }
+}
+
+.animate-spin-cw-slow  { animation: spin-cw   8s linear infinite; transform-box: fill-box; transform-origin: center; }
+.animate-spin-ccw-mid  { animation: spin-ccw  5s linear infinite; transform-box: fill-box; transform-origin: center; }
+.animate-spin-cw-fast  { animation: spin-cw   3s linear infinite; transform-box: fill-box; transform-origin: center; }
+.animate-center-dot    { animation: center-dot-pulse 2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
