@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { Stream } from "@anthropic-ai/sdk/core/streaming";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -14,6 +15,13 @@ Después de entregar el diagnóstico, ofrece el informe acústico completo por 9
 export async function POST(req: NextRequest) {
   const { messages, spaceLabel } = await req.json();
 
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return Response.json(
+      { error: "ANTHROPIC_API_KEY is not configured" },
+      { status: 500 }
+    );
+  }
+
   // Convert internal message format to Anthropic MessageParam format
   const anthropicMessages: Anthropic.MessageParam[] = messages.map(
     (m: { role: "user" | "assistant"; text: string }) => ({
@@ -22,29 +30,20 @@ export async function POST(req: NextRequest) {
     })
   );
 
-  // Validate API key is configured
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return Response.json(
-      { error: "ANTHROPIC_API_KEY is not configured" },
-      { status: 500 }
-    );
-  }
-
-  let stream: Anthropic.Stream<Anthropic.RawMessageStreamEvent>;
+  let stream: Stream<Anthropic.RawMessageStreamEvent>;
 
   try {
-    stream = client.messages.stream({
+    // Awaiting create() with stream:true establishes the HTTP connection and
+    // surfaces auth/billing errors (400/401) before we return any Response.
+    stream = await client.messages.create({
       model: "claude-opus-4-6",
       max_tokens: 1024,
+      stream: true,
       system: `${SYSTEM_PROMPT}\n\nEl usuario quiere asesoría para su espacio: ${spaceLabel}.`,
       messages: anthropicMessages,
-      cache_control: { type: "ephemeral" },
     });
-
-    // Eagerly trigger the API call so auth/billing errors surface before we return
-    await stream.initialMessage();
   } catch (err) {
-    const apiErr = err as Anthropic.APIError;
+    const apiErr = err as InstanceType<typeof Anthropic.APIError>;
     const status = apiErr.status ?? 500;
     const message =
       (apiErr.error as { error?: { message?: string } })?.error?.message ??
