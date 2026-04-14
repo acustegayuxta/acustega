@@ -10,7 +10,9 @@ Haz una o dos preguntas por turno. Recopila progresivamente: dimensiones del esp
 
 Para proyectos con presupuesto mayor a 3000 USD, recomienda una sesión directa con nuestros expertos acústicos: videollamada por 80 USD o paquete completo por 350 USD.
 
-Después de entregar el diagnóstico, ofrece el informe acústico completo por 9.99 USD. Menciona el curso en Hotmart por 197 USD con casos reales de estudios profesionales solo después de haber entregado valor primero, nunca al inicio de la conversación.`;
+Cuando hayas completado el diagnóstico y entregado tus recomendaciones principales, cierra con este mensaje exacto al final de tu respuesta: "Puedes descargar tu reporte acústico completo en PDF por $9.99 USD — incluye diagnóstico detallado, plan de tratamiento, lista de materiales con proveedores locales, tabla de presupuesto y próximos pasos. Haz clic en el botón PDF que aparece arriba para generarlo." No menciones WhatsApp, wa.link ni ningún enlace externo para la entrega del reporte. El reporte se descarga directamente desde esta app.
+
+Menciona el curso en Hotmart por 197 USD con casos reales de estudios profesionales solo después de haber entregado valor primero, nunca al inicio de la conversación.`;
 
 export async function POST(req: NextRequest) {
   const { messages, spaceLabel } = await req.json();
