@@ -7,7 +7,7 @@ const BG   = "#0D1117";
 const CYAN = "#00B4D8";
 const MUTED = "#8B949E";
 
-const SPLASH_DELAY = 2000;  // ms before fade starts
+const SPLASH_DELAY = 3000;  // ms before fade starts
 const FADE_DURATION = 500;  // ms fade-out takes
 
 export default function SplashPage() {
