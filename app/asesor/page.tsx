@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 
 const BG      = "#0D1117";
 const SURFACE = "#161B22";
@@ -222,6 +223,7 @@ function ChatBubble({ message }: { message: Message }) {
 // ── Main page ───────────────────────────────────────────────────────────────
 
 export default function AsesorPage() {
+  const router = useRouter();
   const [selectedSpace, setSelectedSpace] = useState<Space | null>(null);
   const [messages,     setMessages]     = useState<Message[]>([]);
   const [apiMessages,  setApiMessages]  = useState<Message[]>([]);
@@ -236,6 +238,20 @@ export default function AsesorPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
+
+  // Save conversation to localStorage for the report page
+  useEffect(() => {
+    if (selectedSpace && messages.length > 0) {
+      try {
+        localStorage.setItem(
+          "acustega_reporte",
+          JSON.stringify({ messages, spaceLabel: selectedSpace.label })
+        );
+      } catch {
+        // ignore quota errors
+      }
+    }
+  }, [messages, selectedSpace]);
 
   const handleSelectSpace = async (space: Space) => {
     setSelectedSpace(space);
@@ -448,6 +464,32 @@ export default function AsesorPage() {
               style={{ backgroundColor: "#22c55e", boxShadow: "0 0 5px #22c55e" }} />
             <span className="text-[10px]" style={{ color: `${MUTED}80` }}>En línea</span>
           </div>
+
+          {/* Report button */}
+          {messages.length > 1 && (
+            <button
+              onClick={() => router.push("/reporte")}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold flex-shrink-0 transition-all"
+              style={{
+                backgroundColor: `${AMBER}18`,
+                border: `1px solid ${AMBER}45`,
+                color: AMBER,
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.backgroundColor = `${AMBER}28`;
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.backgroundColor = `${AMBER}18`;
+              }}
+              title="Descargar reporte PDF"
+            >
+              <svg viewBox="0 0 14 14" fill="none" className="w-3 h-3">
+                <path d="M7 1v7M4 5l3 3 3-3" stroke={AMBER} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M2 10h10" stroke={AMBER} strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+              PDF
+            </button>
+          )}
         </header>
 
         {/* ── Messages ── */}
