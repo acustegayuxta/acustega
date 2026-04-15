@@ -239,17 +239,33 @@ export default function AsesorPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
-  // Save conversation to localStorage for the report page
+  // Save conversation to localStorage for the report page.
+  // Messages are cleaned before storing: control characters stripped,
+  // whitespace normalized, so the report API receives safe plain strings.
   useEffect(() => {
-    if (selectedSpace && messages.length > 0) {
-      try {
-        localStorage.setItem(
-          "acustega_reporte",
-          JSON.stringify({ messages, spaceLabel: selectedSpace.label })
-        );
-      } catch {
-        // ignore quota errors
-      }
+    if (!selectedSpace || messages.length === 0) return;
+
+    const cleanText = (text: string): string =>
+      text
+        // Strip control chars except tab and newline
+        .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
+        // Collapse 3+ consecutive newlines into 2
+        .replace(/\n{3,}/g, "\n\n")
+        // Trim leading/trailing whitespace
+        .trim();
+
+    const cleaned = messages.map((m) => ({
+      ...m,
+      text: cleanText(m.text),
+    }));
+
+    try {
+      localStorage.setItem(
+        "acustega_reporte",
+        JSON.stringify({ messages: cleaned, spaceLabel: selectedSpace.label })
+      );
+    } catch {
+      // ignore quota errors
     }
   }, [messages, selectedSpace]);
 

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { initializePaddle, type Paddle } from "@paddle/paddle-js";
 
 const BG      = "#0D1117";
 const SURFACE = "#161B22";
@@ -128,10 +129,14 @@ function Spinner() {
 
 export default function ReportePage() {
   const router = useRouter();
+  const paddleRef = useRef<Paddle | null>(null);
+
   const [hasConversation, setHasConversation] = useState(false);
   const [spaceLabel, setSpaceLabel] = useState<string | null>(null);
-  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "paying" | "loading" | "success" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
+
+  // ── Load conversation from localStorage ──────────────────────────────────
 
   useEffect(() => {
     try {
@@ -148,9 +153,9 @@ export default function ReportePage() {
     }
   }, []);
 
-  const handleDownload = async () => {
-    if (status === "loading") return;
+  // ── Generate and download PDF (called after payment) ─────────────────────
 
+  const generateAndDownload = useCallback(async () => {
     let messages: Array<{ role: string; text: string }> = [];
     let space = "";
 
@@ -161,7 +166,7 @@ export default function ReportePage() {
       messages = parsed.messages ?? [];
       space = parsed.spaceLabel ?? "Espacio";
     } catch {
-      setErrorMsg("No se encontró una conversación. Ve al asesor primero.");
+      setErrorMsg("No se encontró la conversación. Ve al asesor primero.");
       setStatus("error");
       return;
     }
@@ -195,6 +200,114 @@ export default function ReportePage() {
       setErrorMsg(err instanceof Error ? err.message : "Error al generar el reporte.");
       setStatus("error");
     }
+  }, []);
+
+  // ── Initialize Paddle (once only) ───────────────────────────────────────
+
+  // Keep latest callback in a ref so the eventCallback closure never goes stale
+  const generateAndDownloadRef = useRef(generateAndDownload);
+  useEffect(() => { generateAndDownloadRef.current = generateAndDownload; }, [generateAndDownload]);
+
+  const statusRef = useRef(status);
+  useEffect(() => { statusRef.current = status; }, [status]);
+
+  useEffect(() => {
+    console.log("[Paddle] Initializing — environment: sandbox");
+    console.log("[Paddle] Client token:", process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN);
+
+    initializePaddle({
+      environment: "production",
+      token: process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN!,
+      checkout: {
+        settings: {
+          displayMode: "overlay",
+          theme: "dark",
+          locale: "es",
+        },
+      },
+      eventCallback(event) {
+        console.log("[Paddle] Event:", event.name, event);
+        if (event.name === "checkout.completed") {
+          generateAndDownloadRef.current();
+        }
+        if (event.name === "checkout.closed" && statusRef.current === "paying") {
+          setStatus("idle");
+        }
+      },
+    })
+      .then((paddle) => {
+        if (paddle) {
+          console.log("[Paddle] Initialized OK:", paddle);
+          paddleRef.current = paddle;
+        } else {
+          console.error("[Paddle] initializePaddle returned null/undefined");
+        }
+      })
+      .catch((err) => {
+        console.error("[Paddle] Initialization error:", err);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once — refs keep callbacks fresh
+
+  // ── DEV bypass: skip checkout ────────────────────────────────────────────
+
+  const handleBypass = () => {
+    console.log("[DEV] Skipping Paddle checkout — calling generateAndDownload directly");
+    generateAndDownloadRef.current();
+  };
+
+  // ── Open Paddle checkout ─────────────────────────────────────────────────
+
+  const handleBuy = () => {
+    console.log("[Paddle] handleBuy — paddleRef:", paddleRef.current);
+    console.log("[Paddle] Price ID:", process.env.NEXT_PUBLIC_PADDLE_PRICE_ID);
+
+    if (!paddleRef.current) {
+      console.error("[Paddle] Not initialized yet");
+      return;
+    }
+    if (status === "loading" || status === "paying") return;
+
+    setStatus("paying");
+    setErrorMsg("");
+
+    try {
+      paddleRef.current.Checkout.open({
+        items: [
+          {
+            priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_ID!,
+            quantity: 1,
+          },
+        ],
+      });
+      console.log("[Paddle] Checkout.open() called");
+    } catch (err) {
+      console.error("[Paddle] Checkout.open() error:", err);
+      setStatus("error");
+      setErrorMsg("No se pudo abrir el checkout. Ver consola para detalles.");
+    }
+  };
+
+  // ── Button label helpers ─────────────────────────────────────────────────
+
+  const isBusy = status === "paying" || status === "loading";
+
+  const buttonLabel = () => {
+    if (status === "loading") return (
+      <><Spinner />Generando reporte...</>
+    );
+    if (status === "paying") return (
+      <><Spinner />Procesando pago...</>
+    );
+    return (
+      <>
+        <svg viewBox="0 0 18 18" fill="none" className="w-4 h-4">
+          <path d="M9 2v9M5 7l4 4 4-4" stroke={BG} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M3 13h12" stroke={BG} strokeWidth="2" strokeLinecap="round"/>
+        </svg>
+        Descargar reporte · $9.99
+      </>
+    );
   };
 
   return (
@@ -365,26 +478,20 @@ export default function ReportePage() {
             </div>
           )}
 
-          {/* Download button */}
+          {/* Buy / Download button */}
           <button
-            onClick={handleDownload}
-            disabled={status === "loading" || !hasConversation}
+            onClick={handleBuy}
+            disabled={isBusy || !hasConversation || status === "success"}
             className="w-full flex items-center justify-center gap-2.5 py-4 rounded-xl text-sm font-bold tracking-wide transition-all"
             style={{
-              backgroundColor:
-                status === "loading" || !hasConversation
-                  ? `${AMBER}60`
-                  : AMBER,
+              backgroundColor: isBusy || !hasConversation ? `${AMBER}60` : AMBER,
               color: BG,
-              boxShadow:
-                status !== "loading" && hasConversation
-                  ? `0 4px 20px ${AMBER}35`
-                  : "none",
+              boxShadow: !isBusy && hasConversation ? `0 4px 20px ${AMBER}35` : "none",
               opacity: !hasConversation ? 0.5 : 1,
-              cursor: !hasConversation ? "not-allowed" : "pointer",
+              cursor: !hasConversation || isBusy ? "not-allowed" : "pointer",
             }}
             onMouseEnter={(e) => {
-              if (status !== "loading" && hasConversation) {
+              if (!isBusy && hasConversation) {
                 (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 6px 28px ${AMBER}50`;
                 (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
               }
@@ -394,24 +501,11 @@ export default function ReportePage() {
               (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)";
             }}
           >
-            {status === "loading" ? (
-              <>
-                <Spinner />
-                Generando reporte...
-              </>
-            ) : (
-              <>
-                <svg viewBox="0 0 18 18" fill="none" className="w-4 h-4">
-                  <path d="M9 2v9M5 7l4 4 4-4" stroke={BG} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M3 13h12" stroke={BG} strokeWidth="2" strokeLinecap="round"/>
-                </svg>
-                Descargar reporte · $9.99
-              </>
-            )}
+            {buttonLabel()}
           </button>
 
           <p className="text-[10px] text-center" style={{ color: `${MUTED}60` }}>
-            PDF generado con inteligencia artificial · Acustega AI
+            Pago seguro con Paddle · PDF generado con IA · Acustega AI
           </p>
 
           {/* Go to advisor link */}
@@ -422,6 +516,24 @@ export default function ReportePage() {
               style={{ color: CYAN }}
             >
               Ir al asesor →
+            </button>
+          )}
+
+          {/* DEV bypass — skip Paddle and generate PDF directly */}
+          {process.env.NODE_ENV === "development" && (
+            <button
+              onClick={handleBypass}
+              disabled={!hasConversation || status === "loading"}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-mono transition-all"
+              style={{
+                backgroundColor: "transparent",
+                border: `1px dashed #6b7280`,
+                color: "#6b7280",
+                opacity: !hasConversation ? 0.4 : 1,
+                cursor: !hasConversation ? "not-allowed" : "pointer",
+              }}
+            >
+              ⚙ [DEV] Saltar pago → generar PDF
             </button>
           )}
         </div>
@@ -438,12 +550,12 @@ export default function ReportePage() {
             </p>
             <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
               {[
-                { num: "01", label: "Portada", color: CYAN },
-                { num: "02", label: "Diagnóstico", color: CYAN },
-                { num: "03", label: "Tratamiento", color: AMBER },
-                { num: "04", label: "Materiales", color: CYAN },
-                { num: "05", label: "Presupuesto", color: AMBER },
-                { num: "06", label: "Próximos pasos", color: CYAN },
+                { num: "01", label: "Portada",        color: CYAN  },
+                { num: "02", label: "Diagnóstico",    color: CYAN  },
+                { num: "03", label: "Tratamiento",    color: AMBER },
+                { num: "04", label: "Materiales",     color: CYAN  },
+                { num: "05", label: "Presupuesto",    color: AMBER },
+                { num: "06", label: "Próximos pasos", color: CYAN  },
               ].map((p) => (
                 <div
                   key={p.num}
@@ -454,9 +566,7 @@ export default function ReportePage() {
                     width: 80,
                   }}
                 >
-                  <span className="text-xs font-bold" style={{ color: p.color }}>
-                    {p.num}
-                  </span>
+                  <span className="text-xs font-bold" style={{ color: p.color }}>{p.num}</span>
                   <div
                     className="w-full rounded"
                     style={{ height: 52, backgroundColor: SURFACE2, border: `1px solid ${p.color}20` }}

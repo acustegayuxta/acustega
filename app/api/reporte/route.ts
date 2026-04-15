@@ -336,6 +336,83 @@ function buildPDF(data: ReportData, spaceLabel: string): ArrayBuffer {
   return doc.output("arraybuffer");
 }
 
+// ── JSON sanitizer ───────────────────────────────────────────────────────────
+// Escapes raw control characters found inside JSON string values without
+// touching the structural characters outside strings. This fixes the common
+// "Unexpected token / Expected ',' or ']'" errors caused by LLMs embedding
+// literal newlines or other control chars inside string values.
+
+function sanitizeJsonString(raw: string): string {
+  let result = "";
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < raw.length; i++) {
+    const char = raw[i];
+
+    if (escaped) {
+      result += char;
+      escaped = false;
+      continue;
+    }
+
+    if (char === "\\") {
+      escaped = true;
+      result += char;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = !inString;
+      result += char;
+      continue;
+    }
+
+    if (inString) {
+      const code = char.charCodeAt(0);
+      if (code < 0x20) {
+        // Escape raw control characters inside string values
+        switch (char) {
+          case "\n": result += "\\n"; break;
+          case "\r": result += "\\r"; break;
+          case "\t": result += "\\t"; break;
+          default:   result += `\\u${code.toString(16).padStart(4, "0")}`; break;
+        }
+      } else {
+        result += char;
+      }
+    } else {
+      result += char;
+    }
+  }
+
+  return result;
+}
+
+function parseReportJson(raw: string): ReportData {
+  // Strip markdown fences
+  const stripped = raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+
+  // Extract the outermost JSON object
+  const match = stripped.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error("No JSON object found in Claude response");
+
+  const jsonStr = match[0];
+
+  // First attempt: parse as-is
+  try {
+    return JSON.parse(jsonStr) as ReportData;
+  } catch {
+    // Second attempt: sanitize control characters inside strings
+    try {
+      return JSON.parse(sanitizeJsonString(jsonStr)) as ReportData;
+    } catch (err2) {
+      const e = err2 as Error;
+      throw new Error(`JSON parse failed after sanitization: ${e.message}`);
+    }
+  }
+}
+
 // ── Route handler ────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -356,7 +433,7 @@ export async function POST(req: NextRequest) {
   try {
     const response = await client.messages.create({
       model: "claude-opus-4-6",
-      max_tokens: 2048,
+      max_tokens: 4096,
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: `Espacio: ${spaceLabel}\n\nConversación:\n${conversationText}` }],
     });
@@ -364,11 +441,7 @@ export async function POST(req: NextRequest) {
     const content = response.content[0];
     if (content.type !== "text") throw new Error("Unexpected response type");
 
-    const cleaned = content.text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    const match = cleaned.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("Could not parse report data");
-
-    const data: ReportData = JSON.parse(match[0]);
+    const data = parseReportJson(content.text);
     const pdfBuffer = buildPDF(data, spaceLabel);
     const slug = spaceLabel.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 
