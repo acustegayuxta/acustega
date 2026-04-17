@@ -37,7 +37,16 @@ interface ReportData {
 
 // ── Claude prompt ────────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You are an expert acoustic engineer. Analyze the conversation and return ONLY valid JSON (no markdown, no code fences, no extra text):
+const SYSTEM_PROMPT = `You are an expert acoustic engineer. Your sole task is to analyze the conversation and output a single valid JSON object.
+
+CRITICAL RULES — violation will break the system:
+- Output ONLY the raw JSON object. No preamble, no explanation, no markdown, no code fences, no trailing text.
+- Do not write \`\`\`json or \`\`\` anywhere.
+- Do not write any sentence before or after the JSON.
+- Your entire response must start with { and end with }.
+- If the conversation lacks sufficient acoustic detail, still return the JSON using reasonable generic values based on the space name — never respond with plain text.
+
+Required schema (fill every field in Spanish):
 {
   "spaceName": "name of space",
   "diagnosis": "2-3 sentence overall acoustic diagnosis",
@@ -418,11 +427,26 @@ function parseReportJson(raw: string): ReportData {
 export async function POST(req: NextRequest) {
   const { messages, spaceLabel } = await req.json();
 
+  console.log("[Reporte] messages recibidos:", JSON.stringify(messages?.slice(0, 2)));
+  console.log("[Reporte] spaceLabel:", spaceLabel);
+
   if (!process.env.ANTHROPIC_API_KEY) {
     return Response.json({ error: "API key not configured" }, { status: 500 });
   }
   if (!messages?.length) {
     return Response.json({ error: "No conversation provided" }, { status: 400 });
+  }
+
+  const userMessages = (messages as Array<{ role: string; text: string }>)
+    .filter((m) => m.role === "user" && m.text?.trim());
+
+  const userChars = userMessages.reduce((acc, m) => acc + m.text.length, 0);
+
+  if (userMessages.length < 2 || userChars < 50) {
+    return Response.json(
+      { error: "La conversación es muy corta para generar un reporte. Completa la consulta con el asesor antes de continuar." },
+      { status: 400 }
+    );
   }
 
   const conversationText = (messages as Array<{ role: string; text: string }>)
@@ -441,7 +465,10 @@ export async function POST(req: NextRequest) {
     const content = response.content[0];
     if (content.type !== "text") throw new Error("Unexpected response type");
 
-    const data = parseReportJson(content.text);
+    const rawText = content.text;
+    console.log("[Reporte] respuesta Anthropic:", rawText);
+
+    const data = parseReportJson(rawText);
     const pdfBuffer = buildPDF(data, spaceLabel);
     const slug = spaceLabel.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 

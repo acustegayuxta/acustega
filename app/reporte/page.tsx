@@ -135,6 +135,13 @@ export default function ReportePage() {
   const [spaceLabel, setSpaceLabel] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "paying" | "loading" | "success" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const [showUpsell, setShowUpsell] = useState(false);
+  const [upsellStatus, setUpsellStatus] = useState<"idle" | "paying" | "loading">("idle");
+  const [promptText, setPromptText] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  // Tracks which product is being purchased so eventCallback routes correctly
+  const pendingPurchaseType = useRef<"pdf" | "bundle" | "prompt">("pdf");
 
   // ── Load conversation from localStorage ──────────────────────────────────
 
@@ -196,17 +203,60 @@ export default function ReportePage() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       setStatus("success");
+      setShowUpsell(true);
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Error al generar el reporte.");
       setStatus("error");
     }
   }, []);
 
+  // ── Generate design prompt (called after prompt purchase) ────────────────
+
+  const generatePrompt = useCallback(async () => {
+    setUpsellStatus("loading");
+
+    let messages: Array<{ role: string; text: string }> = [];
+    let space = "";
+
+    try {
+      const raw = localStorage.getItem("acustega_reporte");
+      if (!raw) throw new Error("No hay conversación guardada.");
+      const parsed = JSON.parse(raw);
+      messages = parsed.messages ?? [];
+      space = parsed.spaceLabel ?? "Espacio";
+    } catch {
+      setUpsellStatus("idle");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/prompt-diseno", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages, spaceLabel: space }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `Error ${res.status}`);
+      }
+
+      const data = await res.json() as { prompt: string };
+      setPromptText(data.prompt);
+      setUpsellStatus("idle");
+    } catch {
+      setUpsellStatus("idle");
+    }
+  }, []);
+
   // ── Initialize Paddle (once only) ───────────────────────────────────────
 
-  // Keep latest callback in a ref so the eventCallback closure never goes stale
+  // Keep latest callbacks in refs so eventCallback closure never goes stale
   const generateAndDownloadRef = useRef(generateAndDownload);
   useEffect(() => { generateAndDownloadRef.current = generateAndDownload; }, [generateAndDownload]);
+
+  const generatePromptRef = useRef(generatePrompt);
+  useEffect(() => { generatePromptRef.current = generatePrompt; }, [generatePrompt]);
 
   const statusRef = useRef(status);
   useEffect(() => { statusRef.current = status; }, [status]);
@@ -228,10 +278,15 @@ export default function ReportePage() {
       eventCallback(event) {
         console.log("[Paddle] Event:", event.name, event);
         if (event.name === "checkout.completed") {
-          generateAndDownloadRef.current();
+          if (pendingPurchaseType.current === "prompt") {
+            generatePromptRef.current();
+          } else {
+            generateAndDownloadRef.current();
+          }
         }
-        if (event.name === "checkout.closed" && statusRef.current === "paying") {
-          setStatus("idle");
+        if (event.name === "checkout.closed") {
+          if (statusRef.current === "paying") setStatus("idle");
+          if (pendingPurchaseType.current === "prompt") setUpsellStatus("idle");
         }
       },
     })
@@ -258,9 +313,8 @@ export default function ReportePage() {
 
   // ── Open Paddle checkout ─────────────────────────────────────────────────
 
-  const handleBuy = () => {
-    console.log("[Paddle] handleBuy — paddleRef:", paddleRef.current);
-    console.log("[Paddle] Price ID:", process.env.NEXT_PUBLIC_PADDLE_PRICE_ID);
+  const openCheckout = (priceId: string, type: "pdf" | "bundle") => {
+    console.log("[Paddle] openCheckout — priceId:", priceId, "type:", type);
 
     if (!paddleRef.current) {
       console.error("[Paddle] Not initialized yet");
@@ -268,17 +322,13 @@ export default function ReportePage() {
     }
     if (status === "loading" || status === "paying") return;
 
+    pendingPurchaseType.current = type;
     setStatus("paying");
     setErrorMsg("");
 
     try {
       paddleRef.current.Checkout.open({
-        items: [
-          {
-            priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_ID!,
-            quantity: 1,
-          },
-        ],
+        items: [{ priceId, quantity: 1 }],
       });
       console.log("[Paddle] Checkout.open() called");
     } catch (err) {
@@ -288,27 +338,35 @@ export default function ReportePage() {
     }
   };
 
-  // ── Button label helpers ─────────────────────────────────────────────────
+  const handleBuyPdf    = () => openCheckout(process.env.NEXT_PUBLIC_PADDLE_PRICE_ID!, "pdf");
+  const handleBuyBundle = () => {
+    console.log("[Bundle] priceId:", process.env.NEXT_PUBLIC_PADDLE_PRICE_BUNDLE_ID);
+    openCheckout(process.env.NEXT_PUBLIC_PADDLE_PRICE_BUNDLE_ID!, "bundle");
+  };
+  const handleBuyPrompt = () => {
+    if (!paddleRef.current || upsellStatus === "paying" || upsellStatus === "loading") return;
+    pendingPurchaseType.current = "prompt";
+    setUpsellStatus("paying");
+    try {
+      paddleRef.current.Checkout.open({
+        items: [{ priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_PROMPT_ID!, quantity: 1 }],
+      });
+    } catch (err) {
+      console.error("[Paddle] Upsell checkout error:", err);
+      setUpsellStatus("idle");
+    }
+  };
+
+  // ── Button helpers ───────────────────────────────────────────────────────
 
   const isBusy = status === "paying" || status === "loading";
 
-  const buttonLabel = () => {
-    if (status === "loading") return (
-      <><Spinner />Generando reporte...</>
-    );
-    if (status === "paying") return (
-      <><Spinner />Procesando pago...</>
-    );
-    return (
-      <>
-        <svg viewBox="0 0 18 18" fill="none" className="w-4 h-4">
-          <path d="M9 2v9M5 7l4 4 4-4" stroke={BG} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          <path d="M3 13h12" stroke={BG} strokeWidth="2" strokeLinecap="round"/>
-        </svg>
-        Descargar reporte · $9.99
-      </>
-    );
-  };
+  const DownloadIcon = () => (
+    <svg viewBox="0 0 18 18" fill="none" className="w-4 h-4">
+      <path d="M9 2v9M5 7l4 4 4-4" stroke={BG} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M3 13h12" stroke={BG} strokeWidth="2" strokeLinecap="round"/>
+    </svg>
+  );
 
   return (
     <>
@@ -478,30 +536,73 @@ export default function ReportePage() {
             </div>
           )}
 
-          {/* Buy / Download button */}
+          {/* ── Bundle button (highlighted) ── */}
           <button
-            onClick={handleBuy}
+            onClick={handleBuyBundle}
             disabled={isBusy || !hasConversation || status === "success"}
-            className="w-full flex items-center justify-center gap-2.5 py-4 rounded-xl text-sm font-bold tracking-wide transition-all"
+            className="w-full flex flex-col items-center gap-1 py-4 rounded-xl text-sm font-bold tracking-wide transition-all relative overflow-hidden"
             style={{
-              backgroundColor: isBusy || !hasConversation ? `${AMBER}60` : AMBER,
+              backgroundColor: isBusy || !hasConversation ? `${CYAN}40` : CYAN,
               color: BG,
-              boxShadow: !isBusy && hasConversation ? `0 4px 20px ${AMBER}35` : "none",
+              boxShadow: !isBusy && hasConversation ? `0 4px 24px ${CYAN}45` : "none",
               opacity: !hasConversation ? 0.5 : 1,
               cursor: !hasConversation || isBusy ? "not-allowed" : "pointer",
             }}
             onMouseEnter={(e) => {
               if (!isBusy && hasConversation) {
-                (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 6px 28px ${AMBER}50`;
+                (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 6px 32px ${CYAN}60`;
                 (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
               }
             }}
             onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 4px 20px ${AMBER}35`;
+              (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 4px 24px ${CYAN}45`;
               (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)";
             }}
           >
-            {buttonLabel()}
+            {/* "Popular" badge */}
+            <span
+              className="absolute top-0 right-0 text-[9px] font-bold px-2 py-0.5 rounded-bl-lg"
+              style={{ backgroundColor: AMBER, color: BG }}
+            >
+              RECOMENDADO
+            </span>
+            <span className="flex items-center gap-2">
+              {isBusy && status === "paying" ? <Spinner /> : (
+                <svg viewBox="0 0 18 18" fill="none" className="w-4 h-4">
+                  <path d="M9 2v9M5 7l4 4 4-4" stroke={BG} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M3 13h12" stroke={BG} strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              )}
+              Reporte PDF + Prompt de diseño · $13.99
+            </span>
+            <span className="text-[10px] font-normal opacity-80">
+              Incluye prompt para visualizar tu espacio con IA
+            </span>
+          </button>
+
+          {/* ── PDF-only button ── */}
+          <button
+            onClick={handleBuyPdf}
+            disabled={isBusy || !hasConversation || status === "success"}
+            className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl text-sm font-bold tracking-wide transition-all"
+            style={{
+              backgroundColor: "transparent",
+              border: `1.5px solid ${!hasConversation || isBusy ? AMBER + "40" : AMBER}`,
+              color: !hasConversation || isBusy ? `${AMBER}60` : AMBER,
+              opacity: !hasConversation ? 0.5 : 1,
+              cursor: !hasConversation || isBusy ? "not-allowed" : "pointer",
+            }}
+            onMouseEnter={(e) => {
+              if (!isBusy && hasConversation) {
+                (e.currentTarget as HTMLButtonElement).style.backgroundColor = `${AMBER}12`;
+              }
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
+            }}
+          >
+            {isBusy ? <Spinner /> : <DownloadIcon />}
+            Solo reporte PDF · $9.99
           </button>
 
           <p className="text-[10px] text-center" style={{ color: `${MUTED}60` }}>
@@ -537,6 +638,197 @@ export default function ReportePage() {
             </button>
           )}
         </div>
+
+        {/* ── Upsell overlay ── */}
+        {showUpsell && (
+          <div
+            className="fixed inset-0 flex items-end justify-center z-50 px-4 pb-8"
+            style={{ backgroundColor: "rgba(13,17,23,0.85)", backdropFilter: "blur(6px)" }}
+          >
+            <div
+              className="w-full max-w-md rounded-2xl p-6 flex flex-col items-center gap-4"
+              style={{
+                backgroundColor: SURFACE,
+                border: `1px solid ${BORDER}`,
+                boxShadow: `0 -8px 40px rgba(0,0,0,0.6)`,
+                animation: "fade-up 0.35s ease-out both",
+                maxHeight: "90vh",
+                overflowY: "auto",
+              }}
+            >
+              {promptText ? (
+                /* ── Prompt result view ── */
+                <>
+                  <div className="w-full flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold tracking-[0.25em] uppercase"
+                        style={{ color: CYAN }}>Prompt listo</p>
+                      <p className="text-sm font-bold mt-0.5" style={{ color: CREAM }}>
+                        Copia y pega en Midjourney o DALL·E
+                      </p>
+                    </div>
+                    <div
+                      className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: `#22c55e18`, border: `1px solid #22c55e35` }}
+                    >
+                      <svg viewBox="0 0 16 16" fill="none" className="w-4 h-4">
+                        <path d="M3 8l3 3 7-7" stroke="#22c55e" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </div>
+                  </div>
+
+                  {/* Prompt text box */}
+                  <div
+                    className="w-full rounded-xl p-4 text-xs leading-relaxed"
+                    style={{
+                      backgroundColor: `${BG}`,
+                      border: `1px solid ${BORDER}`,
+                      color: CREAM,
+                      fontFamily: "monospace",
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {promptText}
+                  </div>
+
+                  {/* Copy button */}
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(promptText).then(() => {
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2500);
+                      });
+                    }}
+                    className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-bold transition-all"
+                    style={{
+                      backgroundColor: copied ? `#22c55e` : CYAN,
+                      color: BG,
+                      boxShadow: `0 4px 20px ${copied ? "#22c55e" : CYAN}35`,
+                    }}
+                  >
+                    {copied ? (
+                      <>
+                        <svg viewBox="0 0 16 16" fill="none" className="w-4 h-4">
+                          <path d="M3 8l3 3 7-7" stroke={BG} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                        ¡Copiado!
+                      </>
+                    ) : (
+                      <>
+                        <svg viewBox="0 0 16 16" fill="none" className="w-4 h-4">
+                          <rect x="5" y="5" width="8" height="8" rx="1.2" stroke={BG} strokeWidth="1.6"/>
+                          <path d="M3 11V3h8" stroke={BG} strokeWidth="1.6" strokeLinecap="round"/>
+                        </svg>
+                        Copiar prompt
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => setShowUpsell(false)}
+                    className="text-xs transition-colors"
+                    style={{ color: `${MUTED}70` }}
+                    onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = MUTED)}
+                    onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = `${MUTED}70`)}
+                  >
+                    Cerrar
+                  </button>
+                </>
+              ) : upsellStatus === "loading" ? (
+                /* ── Generating state ── */
+                <div className="flex flex-col items-center gap-3 py-4">
+                  <svg className="w-8 h-8 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke={BORDER} strokeWidth="3"/>
+                    <path d="M12 2a10 10 0 0 1 10 10" stroke={CYAN} strokeWidth="3" strokeLinecap="round"/>
+                  </svg>
+                  <p className="text-sm font-medium" style={{ color: CREAM }}>Generando prompt de diseño...</p>
+                  <p className="text-xs" style={{ color: MUTED }}>Analizando tu espacio con IA</p>
+                </div>
+              ) : (
+                /* ── Default upsell view ── */
+                <>
+                  {/* Icon */}
+                  <div
+                    className="w-12 h-12 rounded-xl flex items-center justify-center"
+                    style={{ backgroundColor: `${CYAN}15`, border: `1px solid ${CYAN}30` }}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6">
+                      <rect x="3" y="3" width="8" height="8" rx="1.5" stroke={CYAN} strokeWidth="1.5"/>
+                      <rect x="13" y="3" width="8" height="8" rx="1.5" stroke={CYAN} strokeWidth="1.5"/>
+                      <rect x="3" y="13" width="8" height="8" rx="1.5" stroke={AMBER} strokeWidth="1.5"/>
+                      <rect x="13" y="13" width="8" height="8" rx="1.5" stroke={AMBER} strokeWidth="1.5"/>
+                    </svg>
+                  </div>
+
+                  {/* Text */}
+                  <div className="text-center">
+                    <p className="text-[10px] font-bold tracking-[0.25em] uppercase mb-2"
+                      style={{ color: CYAN }}>
+                      Un paso más
+                    </p>
+                    <h2 className="text-lg font-bold leading-snug mb-1.5" style={{ color: CREAM }}>
+                      Tu espacio ya tiene diagnóstico.
+                    </h2>
+                    <p className="text-base font-bold" style={{ color: CYAN }}>
+                      Ahora visualízalo.
+                    </p>
+                    <p className="text-xs mt-2 leading-relaxed" style={{ color: MUTED }}>
+                      Genera un prompt detallado para crear renders de tu espacio optimizado
+                      usando Midjourney, DALL·E o cualquier IA de imagen.
+                    </p>
+                  </div>
+
+                  {/* Buy button */}
+                  <button
+                    onClick={handleBuyPrompt}
+                    disabled={upsellStatus === "paying"}
+                    className="w-full flex items-center justify-center gap-2.5 py-4 rounded-xl text-sm font-bold tracking-wide transition-all"
+                    style={{
+                      backgroundColor: upsellStatus === "paying" ? `${AMBER}60` : AMBER,
+                      color: BG,
+                      boxShadow: upsellStatus !== "paying" ? `0 4px 20px ${AMBER}35` : "none",
+                      cursor: upsellStatus === "paying" ? "not-allowed" : "pointer",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (upsellStatus !== "paying") {
+                        (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 6px 28px ${AMBER}50`;
+                        (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 4px 20px ${AMBER}35`;
+                      (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)";
+                    }}
+                  >
+                    {upsellStatus === "paying" ? (
+                      <><Spinner />Procesando pago...</>
+                    ) : (
+                      <>
+                        <svg viewBox="0 0 18 18" fill="none" className="w-4 h-4">
+                          <path d="M9 2l2 5h5l-4 3 1.5 5L9 12l-4.5 3L6 10 2 7h5z"
+                            stroke={BG} strokeWidth="1.6" strokeLinejoin="round"/>
+                        </svg>
+                        Generar prompt de diseño · $4.99
+                      </>
+                    )}
+                  </button>
+
+                  {/* Dismiss */}
+                  <button
+                    onClick={() => setShowUpsell(false)}
+                    className="text-xs transition-colors"
+                    style={{ color: `${MUTED}70` }}
+                    onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = MUTED)}
+                    onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = `${MUTED}70`)}
+                  >
+                    No gracias, solo el reporte
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ── Sample pages preview ── */}
         <div
