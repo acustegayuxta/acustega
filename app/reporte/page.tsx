@@ -125,6 +125,63 @@ function Spinner() {
   );
 }
 
+// ── Loading messages ──────────────────────────────────────────────────────────
+
+const LOADING_MESSAGES = [
+  "Calibrando los monitores de tu espacio...",
+  "Calculando cuántos dB necesitas para molestar a tus vecinos...",
+  "Midiendo el tiempo de reverberación... suena a cueva de Batman",
+  "Consultando a Dolby sobre tus esquinas...",
+  "Absorbiendo las frecuencias problemáticas con lana mineral virtual...",
+  "Tu flutter echo tiene flutter echo...",
+  "Aplicando la regla de oro: si suena mal, agrega más trampa de graves",
+  "Generando el PDF con máxima fidelidad... 24 bits, 192kHz",
+  "Casi listo... esperando que el bus de mezcla termine de procesar",
+];
+
+function LoadingMessages() {
+  const [index, setIndex] = useState(0);
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setVisible(false);
+      setTimeout(() => {
+        setIndex((i) => (i + 1) % LOADING_MESSAGES.length);
+        setVisible(true);
+      }, 400);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div
+      className="fixed inset-0 flex flex-col items-center justify-center z-40 px-8"
+      style={{ backgroundColor: "rgba(13,17,23,0.92)", backdropFilter: "blur(8px)" }}
+    >
+      <svg className="w-10 h-10 animate-spin mb-6" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="10" stroke={BORDER} strokeWidth="2.5"/>
+        <path d="M12 2a10 10 0 0 1 10 10" stroke={CYAN} strokeWidth="2.5" strokeLinecap="round"/>
+      </svg>
+      <p
+        className="text-sm font-medium text-center leading-relaxed transition-all duration-400"
+        style={{
+          color: CREAM,
+          opacity: visible ? 1 : 0,
+          transform: visible ? "translateY(0)" : "translateY(6px)",
+          transition: "opacity 0.4s ease, transform 0.4s ease",
+          maxWidth: 280,
+        }}
+      >
+        {LOADING_MESSAGES[index]}
+      </p>
+      <p className="text-[10px] mt-4" style={{ color: MUTED }}>
+        Generando tu reporte acústico...
+      </p>
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function ReportePage() {
@@ -638,6 +695,9 @@ export default function ReportePage() {
             </button>
           )}
         </div>
+
+        {/* ── Loading overlay ── */}
+        {status === "loading" && <LoadingMessages />}
 
         {/* ── Upsell overlay ── */}
         {showUpsell && (
