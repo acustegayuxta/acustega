@@ -160,6 +160,8 @@ export default function ReportePage() {
 
   // Tracks which product is being purchased so eventCallback routes correctly
   const pendingPurchaseType = useRef<"pdf" | "bundle" | "prompt">("pdf");
+  // Email captured from Paddle checkout.completed event
+  const buyerEmailRef = useRef<string | null>(null);
 
   // ── Detect locale ────────────────────────────────────────────────────────
 
@@ -216,6 +218,8 @@ export default function ReportePage() {
       }
 
       const blob = await res.blob();
+
+      // Trigger browser download
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -224,13 +228,31 @@ export default function ReportePage() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+
+      // Send PDF by email if we have the buyer's address (fire-and-forget)
+      const email = buyerEmailRef.current;
+      if (email) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64 = (reader.result as string).split(",")[1];
+          fetch("/api/email-reporte", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ pdfBase64: base64, email, spaceLabel: space, locale }),
+          })
+            .then((r) => console.log("[Email] status:", r.status))
+            .catch((e) => console.error("[Email] failed:", e));
+        };
+        reader.readAsDataURL(blob);
+      }
+
       setStatus("success");
       setShowUpsell(true);
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Error al generar el reporte.");
       setStatus("error");
     }
-  }, []);
+  }, [locale]);
 
   // ── Generate design prompt (called after prompt purchase) ────────────────
 
@@ -300,6 +322,10 @@ export default function ReportePage() {
       eventCallback(event) {
         console.log("[Paddle] Event:", event.name, event);
         if (event.name === "checkout.completed") {
+          // Capture buyer email from Paddle event data
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const email = (event.data as any)?.customer?.email as string | undefined;
+          if (email) buyerEmailRef.current = email;
           if (pendingPurchaseType.current === "prompt") {
             generatePromptRef.current();
           } else {
