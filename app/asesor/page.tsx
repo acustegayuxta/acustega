@@ -928,13 +928,13 @@ export default function AsesorPage() {
           {/* Space avatar */}
           <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
             style={{ backgroundColor: `${CYAN}15`, border: `1px solid ${CYAN}35` }}>
-            <span className="text-sm leading-none">{selectedSpace.emoji}</span>
+            <span className="text-sm leading-none">{selectedSpace!.emoji}</span>
           </div>
 
           {/* Name + subtitle */}
           <div className="flex flex-col min-w-0 flex-1">
             <span className="text-sm font-semibold leading-tight truncate" style={{ color: CREAM }}>
-              {selectedSpace.label}
+              {selectedSpace!.label}
             </span>
             <span className="text-[10px] leading-tight" style={{ color: CYAN }}>
               {t(locale, "chatSubtitle")}
