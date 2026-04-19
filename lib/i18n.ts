@@ -1,10 +1,12 @@
 export type Locale = "es" | "en" | "fr" | "it" | "pt";
 
 export function detectLocale(): Locale {
-  if (typeof navigator === "undefined") return "es";
-  const lang = navigator.language.toLowerCase().split(/[-_]/)[0];
+  if (typeof window === "undefined") return "es";
   const supported: Locale[] = ["es", "en", "fr", "it", "pt"];
-  return supported.includes(lang as Locale) ? (lang as Locale) : "es";
+  const param = new URLSearchParams(window.location.search).get("lang")?.toLowerCase();
+  if (param && supported.includes(param as Locale)) return param as Locale;
+  const nav = navigator.language.toLowerCase().split(/[-_]/)[0];
+  return supported.includes(nav as Locale) ? (nav as Locale) : "es";
 }
 
 // ── Locale display names (for system prompt) ─────────────────────────────────
