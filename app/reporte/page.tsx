@@ -589,7 +589,7 @@ export default function ReportePage() {
                 color: "#22c55e",
               }}
             >
-              ✓ Reporte descargado exitosamente
+              🎛️ Reporte descargado exitosamente
             </div>
           )}
 
@@ -691,7 +691,7 @@ export default function ReportePage() {
                 cursor: !hasConversation ? "not-allowed" : "pointer",
               }}
             >
-              ⚙ [DEV] Saltar pago → generar PDF
+              🔧 [DEV] Saltar pago → generar PDF
             </button>
           )}
         </div>

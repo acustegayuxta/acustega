@@ -34,11 +34,11 @@ interface Space {
 const SPACES: Space[] = [
   { id: "estudio",        label: "Estudio",        emoji: "🎙️", subtitle: "Grabación profesional"  },
   { id: "home-studio",    label: "Home Studio",    emoji: "🎧", subtitle: "Producción en casa"      },
-  { id: "iglesia",        label: "Iglesia",        emoji: "⛪",  subtitle: "Espacios de culto"       },
-  { id: "restaurante",    label: "Restaurante",    emoji: "🍽️", subtitle: "Ambiente y confort"      },
+  { id: "iglesia",        label: "Iglesia",        emoji: "🏛️", subtitle: "Espacios de culto"       },
+  { id: "restaurante",    label: "Restaurante",    emoji: "🔉", subtitle: "Ambiente y confort"      },
   { id: "sonido-en-vivo", label: "Sonido en vivo", emoji: "🎤", subtitle: "Eventos y conciertos"    },
-  { id: "oficina",        label: "Oficina",        emoji: "💼", subtitle: "Productividad y foco"    },
-  { id: "industrial",     label: "Industrial",     emoji: "🏭", subtitle: "Control de ruido"        },
+  { id: "oficina",        label: "Oficina",        emoji: "🔇", subtitle: "Productividad y foco"    },
+  { id: "industrial",     label: "Industrial",     emoji: "⚙️", subtitle: "Control de ruido"        },
 ];
 
 // ── API helper ──────────────────────────────────────────────────────────────
@@ -46,12 +46,13 @@ const SPACES: Space[] = [
 async function streamAssistantReply(
   messages: Message[],
   spaceLabel: string,
-  onChunk: (chunk: string) => void
+  onChunk: (chunk: string) => void,
+  photo?: string | null
 ): Promise<void> {
   const res = await fetch("/api/asesor", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, spaceLabel }),
+    body: JSON.stringify({ messages, spaceLabel, ...(photo ? { photo } : {}) }),
   });
 
   if (!res.ok) {
@@ -220,11 +221,35 @@ function ChatBubble({ message }: { message: Message }) {
   );
 }
 
+// ── Data ───────────────────────────────────────────────────────────────────
+
+interface NormativaItem { id: string; label: string; flag: string; normativa: string }
+
+const NORMATIVAS: NormativaItem[] = [
+  { id: "colombia",  label: "Colombia",  flag: "🇨🇴", normativa: "Resolución 0627" },
+  { id: "venezuela", label: "Venezuela", flag: "🇻🇪", normativa: "COVENIN 1565"    },
+  { id: "mexico",    label: "México",    flag: "🇲🇽", normativa: "NOM-081"          },
+  { id: "espana",    label: "España",    flag: "🇪🇸", normativa: "RD 1367"          },
+  { id: "usa",       label: "USA",       flag: "🇺🇸", normativa: "OSHA"             },
+  { id: "otro",      label: "Otro país", flag: "🌍",  normativa: "ISO 1996"         },
+];
+
 // ── Main page ───────────────────────────────────────────────────────────────
+
+interface Dims { largo: string; ancho: string; altura: string }
+
+function calcModes(d: number): [number, number, number] {
+  return [1, 2, 3].map((n) => Math.round((343 * n) / (2 * d))) as [number, number, number];
+}
 
 export default function AsesorPage() {
   const router = useRouter();
   const [selectedSpace, setSelectedSpace] = useState<Space | null>(null);
+  const [pendingSpace,  setPendingSpace]  = useState<Space | null>(null);
+  const [dims,          setDims]          = useState<Dims>({ largo: "", ancho: "", altura: "" });
+  const [normativa,     setNormativa]     = useState<NormativaItem | null>(null);
+  const [photo,         setPhoto]         = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const [messages,     setMessages]     = useState<Message[]>([]);
   const [apiMessages,  setApiMessages]  = useState<Message[]>([]);
   const [input,        setInput]        = useState("");
@@ -269,13 +294,28 @@ export default function AsesorPage() {
     }
   }, [messages, selectedSpace]);
 
-  const handleSelectSpace = async (space: Space) => {
+  const handleSpaceCardClick = (space: Space) => {
+    setPhoto(null);
+    setNormativa(null);
+    setDims({ largo: "", ancho: "", altura: "" });
+    setPendingSpace(space);
+  };
+
+  const handleSelectSpace = async (space: Space, opts?: { dims?: Dims; normativa?: NormativaItem | null; photo?: string | null }) => {
+    setPendingSpace(null);
     setSelectedSpace(space);
     setMessages([]);
     setIsTyping(false);
     setIsStreaming(true);
 
-    const trigger: Message = { id: 0, role: "user", text: "Hola" };
+    const hasDims = opts?.dims?.largo && opts?.dims?.ancho && opts?.dims?.altura;
+    let triggerText = "Hola";
+    if (hasDims) {
+      triggerText = `Hola. Mi espacio mide ${opts!.dims!.largo}m de largo, ${opts!.dims!.ancho}m de ancho y ${opts!.dims!.altura}m de altura.`;
+    } else if (opts?.normativa) {
+      triggerText = `Hola. Tengo un espacio industrial en ${opts.normativa.label}. La normativa aplicable es ${opts.normativa.normativa}.`;
+    }
+    const trigger: Message = { id: 0, role: "user", text: triggerText };
     const greetingId = 1;
     setMessages([{ id: greetingId, role: "assistant", text: "" }]);
 
@@ -284,7 +324,7 @@ export default function AsesorPage() {
       await streamAssistantReply([trigger], space.label, (chunk) => {
         accumulated += chunk;
         setMessages([{ id: greetingId, role: "assistant", text: accumulated }]);
-      });
+      }, opts?.photo);
       const greetingMsg: Message = { id: greetingId, role: "assistant", text: accumulated };
       setApiMessages([trigger, greetingMsg]);
       setIdCounter(2);
@@ -302,6 +342,12 @@ export default function AsesorPage() {
   };
 
   const handleBack = () => {
+    if (pendingSpace) {
+      setPendingSpace(null);
+      setNormativa(null);
+      setPhoto(null);
+      return;
+    }
     setSelectedSpace(null);
     setMessages([]);
     setApiMessages([]);
@@ -362,7 +408,7 @@ export default function AsesorPage() {
 
   // ── Space selection screen ────────────────────────────────────────────────
 
-  if (!selectedSpace) {
+  if (!selectedSpace && !pendingSpace) {
     return (
       <>
         <style>{`
@@ -403,7 +449,7 @@ export default function AsesorPage() {
             <div className="w-full grid grid-cols-2 gap-2">
               {SPACES.map((space, i) => (
                 <div key={space.id} className={i === SPACES.length - 1 ? "col-span-2" : ""}>
-                  <SpaceCard space={space} onSelect={handleSelectSpace} />
+                  <SpaceCard space={space} onSelect={handleSpaceCardClick} />
                 </div>
               ))}
             </div>
@@ -412,6 +458,406 @@ export default function AsesorPage() {
             <p className="text-[9px] tracking-[0.25em] uppercase mt-2" style={{ color: `${MUTED}45` }}>
               Powered by Acustega
             </p>
+          </div>
+        </main>
+      </>
+    );
+  }
+
+  // ── Photo upload helper ───────────────────────────────────────────────────
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 1024;
+        const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext("2d")!.drawImage(img, 0, 0, w, h);
+        setPhoto(canvas.toDataURL("image/jpeg", 0.8));
+      };
+      img.src = ev.target!.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const PhotoUpload = () => (
+    <div className="flex flex-col gap-2">
+      <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+      {photo ? (
+        <div className="relative w-full rounded-xl overflow-hidden" style={{ border: `1px solid ${CYAN}50` }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={photo} alt="Espacio" className="w-full object-cover" style={{ maxHeight: 160 }} />
+          <button
+            onClick={() => setPhoto(null)}
+            className="absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+            style={{ backgroundColor: "rgba(13,17,23,0.8)", color: CREAM }}
+          >✕</button>
+        </div>
+      ) : (
+        <button
+          onClick={() => photoInputRef.current?.click()}
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-medium transition-all"
+          style={{ border: `1px dashed ${BORDER}`, color: MUTED, backgroundColor: "transparent" }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = CYAN + "60"; (e.currentTarget as HTMLButtonElement).style.color = CYAN; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = BORDER; (e.currentTarget as HTMLButtonElement).style.color = MUTED; }}
+        >
+          <svg viewBox="0 0 16 16" fill="none" className="w-3.5 h-3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+            <rect x="1" y="3" width="14" height="10" rx="1.5"/>
+            <circle cx="8" cy="8" r="2.5"/>
+            <path d="M5 3l1-2h4l1 2"/>
+          </svg>
+          Subir foto del espacio (opcional)
+        </button>
+      )}
+    </div>
+  );
+
+  // ── Industrial normativa screen ───────────────────────────────────────────
+
+  if (pendingSpace?.id === "industrial") {
+    return (
+      <>
+        <style>{`
+          @keyframes rl-outer  { 0%,100%{opacity:.35} 50%{opacity:.08} }
+          @keyframes rl-mid    { 0%,100%{opacity:.60} 50%{opacity:.15} }
+          @keyframes rl-inner  { 0%,100%{opacity:.90} 50%{opacity:.30} }
+        `}</style>
+        <main
+          className="min-h-screen flex flex-col"
+          style={{ backgroundColor: BG, fontFamily: "var(--font-outfit)" }}
+        >
+          {/* Header */}
+          <header
+            className="flex items-center gap-3 px-4 py-3 flex-shrink-0"
+            style={{ backgroundColor: SURFACE, borderBottom: `1px solid ${BORDER}` }}
+          >
+            <button
+              onClick={handleBack}
+              className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0"
+              style={{ backgroundColor: `${BORDER}60` }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = `${CYAN}20`)}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = `${BORDER}60`)}
+              aria-label="Volver"
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke={CREAM} strokeWidth="1.8"
+                strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                <path d="M10 3L5 8l5 5" />
+              </svg>
+            </button>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+              style={{ backgroundColor: `${CYAN}15`, border: `1px solid ${CYAN}35` }}>
+              <span className="text-sm leading-none">{pendingSpace.emoji}</span>
+            </div>
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-sm font-semibold leading-tight" style={{ color: CREAM }}>
+                {pendingSpace.label}
+              </span>
+              <span className="text-[10px]" style={{ color: CYAN }}>Normativa de ruido</span>
+            </div>
+          </header>
+
+          {/* Body */}
+          <div className="flex-1 overflow-y-auto px-5 py-6 flex flex-col gap-5 max-w-md mx-auto w-full">
+            <div>
+              <p className="text-[10px] font-bold tracking-[0.28em] uppercase mb-1" style={{ color: CYAN }}>
+                Control de ruido industrial
+              </p>
+              <h2 className="text-base font-bold leading-snug" style={{ color: CREAM }}>
+                ¿En qué país está tu planta?
+              </h2>
+              <p className="text-[11px] mt-1 leading-relaxed" style={{ color: MUTED }}>
+                Aplicaremos la normativa local vigente en el diagnóstico
+              </p>
+            </div>
+
+            {/* Country grid */}
+            <div className="grid grid-cols-2 gap-2">
+              {NORMATIVAS.map((item) => {
+                const selected = normativa?.id === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setNormativa(item)}
+                    className="flex flex-col items-start gap-1 px-4 py-3 rounded-xl text-left transition-all"
+                    style={{
+                      backgroundColor: selected ? `${CYAN}18` : SURFACE,
+                      border: `1.5px solid ${selected ? CYAN : BORDER}`,
+                    }}
+                    onMouseEnter={(e) => { if (!selected) (e.currentTarget as HTMLButtonElement).style.borderColor = CYAN + "50"; }}
+                    onMouseLeave={(e) => { if (!selected) (e.currentTarget as HTMLButtonElement).style.borderColor = BORDER; }}
+                  >
+                    <span className="text-xl leading-none">{item.flag}</span>
+                    <span className="text-xs font-bold leading-tight" style={{ color: selected ? CYAN : CREAM }}>
+                      {item.label}
+                    </span>
+                    <span className="text-[10px] leading-tight font-mono" style={{ color: selected ? CYAN + "CC" : MUTED }}>
+                      {item.normativa}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Photo upload */}
+            <PhotoUpload />
+
+            {/* CTA */}
+            <div className="flex flex-col gap-2 pt-1">
+              <button
+                onClick={() => handleSelectSpace(pendingSpace, { normativa, photo })}
+                disabled={!normativa}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-bold transition-all"
+                style={{
+                  backgroundColor: normativa ? CYAN : `${CYAN}40`,
+                  color: BG,
+                  cursor: normativa ? "pointer" : "not-allowed",
+                  boxShadow: normativa ? `0 4px 20px ${CYAN}35` : "none",
+                }}
+                onMouseEnter={(e) => { if (normativa) { (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 6px 28px ${CYAN}55`; (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)"; } }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.boxShadow = normativa ? `0 4px 20px ${CYAN}35` : "none"; (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)"; }}
+              >
+                Continuar al asesor
+                <svg viewBox="0 0 16 16" fill="none" stroke={BG} strokeWidth="2"
+                  strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                  <path d="M3 8h10M8 3l5 5-5 5" />
+                </svg>
+              </button>
+
+              <button
+                onClick={() => handleSelectSpace(pendingSpace, { photo })}
+                className="w-full py-2.5 text-xs transition-colors"
+                style={{ color: `${MUTED}70` }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = MUTED)}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = `${MUTED}70`)}
+              >
+                Saltar todo
+              </button>
+            </div>
+          </div>
+        </main>
+      </>
+    );
+  }
+
+  // ── Room modes calculator screen ─────────────────────────────────────────
+
+  if (pendingSpace) {
+    const dimFields: { key: keyof Dims; label: string }[] = [
+      { key: "largo",  label: "Largo"  },
+      { key: "ancho",  label: "Ancho"  },
+      { key: "altura", label: "Altura" },
+    ];
+
+    const parsed = {
+      largo:  parseFloat(dims.largo),
+      ancho:  parseFloat(dims.ancho),
+      altura: parseFloat(dims.altura),
+    };
+
+    const hasAny    = dimFields.some(({ key }) => dims[key] !== "" && !isNaN(parsed[key]) && parsed[key] > 0);
+    const hasAll    = dimFields.every(({ key }) => dims[key] !== "" && !isNaN(parsed[key]) && parsed[key] > 0);
+
+    const modeRows: { label: string; key: keyof Dims; modes: [number, number, number] | null }[] = dimFields.map(({ key, label }) => ({
+      label,
+      key,
+      modes: dims[key] !== "" && !isNaN(parsed[key]) && parsed[key] > 0
+        ? calcModes(parsed[key])
+        : null,
+    }));
+
+    return (
+      <>
+        <style>{`
+          @keyframes rl-outer  { 0%,100%{opacity:.35} 50%{opacity:.08} }
+          @keyframes rl-mid    { 0%,100%{opacity:.60} 50%{opacity:.15} }
+          @keyframes rl-inner  { 0%,100%{opacity:.90} 50%{opacity:.30} }
+        `}</style>
+        <main
+          className="min-h-screen flex flex-col"
+          style={{ backgroundColor: BG, fontFamily: "var(--font-outfit)" }}
+        >
+          {/* Header */}
+          <header
+            className="flex items-center gap-3 px-4 py-3 flex-shrink-0"
+            style={{ backgroundColor: SURFACE, borderBottom: `1px solid ${BORDER}` }}
+          >
+            <button
+              onClick={handleBack}
+              className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors flex-shrink-0"
+              style={{ backgroundColor: `${BORDER}60` }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = `${CYAN}20`)}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = `${BORDER}60`)}
+              aria-label="Volver"
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke={CREAM} strokeWidth="1.8"
+                strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                <path d="M10 3L5 8l5 5" />
+              </svg>
+            </button>
+
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+              style={{ backgroundColor: `${CYAN}15`, border: `1px solid ${CYAN}35` }}>
+              <span className="text-sm leading-none">{pendingSpace.emoji}</span>
+            </div>
+
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-sm font-semibold leading-tight" style={{ color: CREAM }}>
+                {pendingSpace.label}
+              </span>
+              <span className="text-[10px]" style={{ color: CYAN }}>
+                Calculadora de modos de sala
+              </span>
+            </div>
+          </header>
+
+          {/* Body */}
+          <div className="flex-1 overflow-y-auto px-5 py-6 flex flex-col gap-5 max-w-md mx-auto w-full">
+
+            {/* Title */}
+            <div>
+              <p className="text-[10px] font-bold tracking-[0.28em] uppercase mb-1" style={{ color: CYAN }}>
+                Modos axiales
+              </p>
+              <h2 className="text-base font-bold leading-snug" style={{ color: CREAM }}>
+                Ingresa las dimensiones de tu espacio
+              </h2>
+              <p className="text-[11px] mt-1 leading-relaxed" style={{ color: MUTED }}>
+                Calculamos las frecuencias de resonancia usando f = 343 / (2 × dimensión)
+              </p>
+            </div>
+
+            {/* Inputs */}
+            <div className="flex flex-col gap-3">
+              {dimFields.map(({ key, label }) => (
+                <div key={key}>
+                  <label className="text-[11px] font-bold mb-1.5 block" style={{ color: MUTED }}>
+                    {label}
+                  </label>
+                  <div
+                    className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
+                    style={{
+                      backgroundColor: SURFACE,
+                      border: `1px solid ${dims[key] !== "" && !isNaN(parseFloat(dims[key])) && parseFloat(dims[key]) > 0 ? CYAN + "60" : BORDER}`,
+                    }}
+                  >
+                    <input
+                      type="number"
+                      min="0.1"
+                      step="0.1"
+                      value={dims[key]}
+                      onChange={(e) => setDims((d) => ({ ...d, [key]: e.target.value }))}
+                      placeholder="0.0"
+                      className="flex-1 bg-transparent text-sm outline-none"
+                      style={{ color: CREAM, caretColor: CYAN }}
+                    />
+                    <span className="text-xs font-medium flex-shrink-0" style={{ color: MUTED }}>m</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Results table */}
+            {hasAny && (
+              <div
+                className="rounded-xl overflow-hidden"
+                style={{ border: `1px solid ${BORDER}` }}
+              >
+                {/* Table header */}
+                <div
+                  className="grid grid-cols-4 px-3 py-2"
+                  style={{ backgroundColor: SURFACE2 }}
+                >
+                  {["Dimensión", "f₁", "f₂", "f₃"].map((h) => (
+                    <span key={h} className="text-[10px] font-bold uppercase tracking-wider text-center"
+                      style={{ color: CYAN }}>
+                      {h}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Rows */}
+                {modeRows.map(({ label, key, modes }, i) => (
+                  <div
+                    key={key}
+                    className="grid grid-cols-4 px-3 py-2.5 items-center"
+                    style={{
+                      backgroundColor: i % 2 === 0 ? SURFACE : `${SURFACE}80`,
+                      borderTop: `1px solid ${BORDER}`,
+                    }}
+                  >
+                    <span className="text-xs font-semibold" style={{ color: CREAM }}>{label}</span>
+                    {modes
+                      ? modes.map((f, mi) => (
+                          <span key={mi} className="text-xs text-center font-mono"
+                            style={{ color: mi === 0 ? AMBER : MUTED }}>
+                            {f} Hz
+                          </span>
+                        ))
+                      : [0, 1, 2].map((mi) => (
+                          <span key={mi} className="text-xs text-center" style={{ color: `${MUTED}40` }}>—</span>
+                        ))
+                    }
+                  </div>
+                ))}
+
+                {hasAll && (
+                  <div
+                    className="px-3 py-2 text-[10px] leading-relaxed"
+                    style={{ backgroundColor: `${AMBER}10`, borderTop: `1px solid ${AMBER}30`, color: `${AMBER}CC` }}
+                  >
+                    Los modos f₁ resaltados son los que más afectan tu mezcla. Tratalos primero.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Photo upload */}
+            <PhotoUpload />
+
+            {/* CTA */}
+            <div className="flex flex-col gap-2 pt-1">
+              <button
+                onClick={() => handleSelectSpace(pendingSpace, { dims: hasAll ? dims : undefined, photo })}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-bold transition-all"
+                style={{
+                  backgroundColor: CYAN,
+                  color: BG,
+                  boxShadow: `0 4px 20px ${CYAN}35`,
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 6px 28px ${CYAN}55`;
+                  (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 4px 20px ${CYAN}35`;
+                  (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)";
+                }}
+              >
+                Continuar al asesor
+                <svg viewBox="0 0 16 16" fill="none" stroke={BG} strokeWidth="2"
+                  strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                  <path d="M3 8h10M8 3l5 5-5 5" />
+                </svg>
+              </button>
+
+              <button
+                onClick={() => handleSelectSpace(pendingSpace, { photo })}
+                className="w-full py-2.5 text-xs transition-colors"
+                style={{ color: `${MUTED}70` }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = MUTED)}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = `${MUTED}70`)}
+              >
+                Saltar todo
+              </button>
+            </div>
           </div>
         </main>
       </>

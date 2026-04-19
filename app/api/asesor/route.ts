@@ -15,7 +15,7 @@ Cuando hayas completado el diagnóstico y entregado tus recomendaciones principa
 Menciona el curso en Hotmart por 197 USD con casos reales de estudios profesionales solo después de haber entregado valor primero, nunca al inicio de la conversación.`;
 
 export async function POST(req: NextRequest) {
-  const { messages, spaceLabel } = await req.json();
+  const { messages, spaceLabel, photo } = await req.json();
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return Response.json(
@@ -24,12 +24,24 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Convert internal message format to Anthropic MessageParam format
+  // Convert internal message format to Anthropic MessageParam format.
+  // If a photo (base64 data URL) is provided, attach it to the first user message.
   const anthropicMessages: Anthropic.MessageParam[] = messages.map(
-    (m: { role: "user" | "assistant"; text: string }) => ({
-      role: m.role,
-      content: m.text,
-    })
+    (m: { role: "user" | "assistant"; text: string }, index: number) => {
+      if (photo && index === 0 && m.role === "user") {
+        const mimeMatch = (photo as string).match(/^data:(image\/\w+);base64,/);
+        const mediaType = (mimeMatch?.[1] ?? "image/jpeg") as "image/jpeg" | "image/png" | "image/webp" | "image/gif";
+        const base64Data = (photo as string).split(",")[1];
+        return {
+          role: m.role,
+          content: [
+            { type: "image" as const, source: { type: "base64" as const, media_type: mediaType, data: base64Data } },
+            { type: "text" as const, text: m.text },
+          ],
+        };
+      }
+      return { role: m.role, content: m.text };
+    }
   );
 
   let stream: Stream<Anthropic.RawMessageStreamEvent>;
