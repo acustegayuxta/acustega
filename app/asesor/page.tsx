@@ -42,6 +42,16 @@ const SPACES: Space[] = [
   { id: "industrial",     label: "Industrial",     emoji: "⚙️", subtitle: "" },
 ];
 
+const SPACE_LABEL_KEYS: Record<string, Parameters<typeof t>[1]> = {
+  "estudio":        "spaceLabelEstudio",
+  "home-studio":    "spaceLabelHomeStudio",
+  "iglesia":        "spaceLabelIglesia",
+  "restaurante":    "spaceLabelRestaurante",
+  "sonido-en-vivo": "spaceLabelSonidoVivo",
+  "oficina":        "spaceLabelOficina",
+  "industrial":     "spaceLabelIndustrial",
+};
+
 const SPACE_SUBTITLE_KEYS: Record<string, Parameters<typeof t>[1]> = {
   "estudio":        "spaceSubEstudio",
   "home-studio":    "spaceSubHomeStudio",
@@ -465,7 +475,11 @@ export default function AsesorPage() {
               {SPACES.map((space, i) => (
                 <div key={space.id} className={i === SPACES.length - 1 ? "col-span-2" : ""}>
                   <SpaceCard
-                    space={{ ...space, subtitle: t(locale, SPACE_SUBTITLE_KEYS[space.id]) }}
+                    space={{
+                      ...space,
+                      label: t(locale, SPACE_LABEL_KEYS[space.id]),
+                      subtitle: t(locale, SPACE_SUBTITLE_KEYS[space.id]),
+                    }}
                     onSelect={handleSpaceCardClick}
                   />
                 </div>
@@ -576,7 +590,7 @@ export default function AsesorPage() {
             </div>
             <div className="flex flex-col min-w-0 flex-1">
               <span className="text-sm font-semibold leading-tight" style={{ color: CREAM }}>
-                {pendingSpace.label}
+                {t(locale, SPACE_LABEL_KEYS[pendingSpace.id])}
               </span>
               <span className="text-[10px]" style={{ color: CYAN }}>
                 {t(locale, "industrialScreenSubtitle")}
@@ -934,7 +948,7 @@ export default function AsesorPage() {
           {/* Name + subtitle */}
           <div className="flex flex-col min-w-0 flex-1">
             <span className="text-sm font-semibold leading-tight truncate" style={{ color: CREAM }}>
-              {selectedSpace!.label}
+              {t(locale, SPACE_LABEL_KEYS[selectedSpace!.id])}
             </span>
             <span className="text-[10px] leading-tight" style={{ color: CYAN }}>
               {t(locale, "chatSubtitle")}

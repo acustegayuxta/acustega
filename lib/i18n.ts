@@ -66,6 +66,57 @@ const ui = {
     pt: "Enviar foto do espaço (opcional)",
   },
 
+  // ── Asesor – Space labels ────────────────────────────────────────────────────
+  spaceLabelEstudio: {
+    es: "Estudio",
+    en: "Studio",
+    fr: "Studio",
+    it: "Studio",
+    pt: "Estúdio",
+  },
+  spaceLabelHomeStudio: {
+    es: "Home Studio",
+    en: "Home Studio",
+    fr: "Home Studio",
+    it: "Home Studio",
+    pt: "Home Studio",
+  },
+  spaceLabelIglesia: {
+    es: "Iglesia",
+    en: "Church",
+    fr: "Église",
+    it: "Chiesa",
+    pt: "Igreja",
+  },
+  spaceLabelRestaurante: {
+    es: "Restaurante",
+    en: "Restaurant",
+    fr: "Restaurant",
+    it: "Ristorante",
+    pt: "Restaurante",
+  },
+  spaceLabelSonidoVivo: {
+    es: "Sonido en vivo",
+    en: "Live Sound",
+    fr: "Son live",
+    it: "Sonoro dal vivo",
+    pt: "Som ao vivo",
+  },
+  spaceLabelOficina: {
+    es: "Oficina",
+    en: "Office",
+    fr: "Bureau",
+    it: "Ufficio",
+    pt: "Escritório",
+  },
+  spaceLabelIndustrial: {
+    es: "Industrial",
+    en: "Industrial",
+    fr: "Industriel",
+    it: "Industriale",
+    pt: "Industrial",
+  },
+
   // ── Asesor – Space selection ─────────────────────────────────────────────────
   selectTitle: {
     es: "¿Qué espacio vamos a optimizar?",
