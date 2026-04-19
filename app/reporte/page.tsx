@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { initializePaddle, type Paddle } from "@paddle/paddle-js";
+import { detectLocale, t, getFeatures, getLoadingMessages, getPagePreviews, type Locale } from "@/lib/i18n";
 
 const BG      = "#0D1117";
 const SURFACE = "#161B22";
@@ -13,77 +14,47 @@ const CREAM   = "#F0F6FC";
 const MUTED   = "#8B949E";
 const BORDER  = "#30363D";
 
-// ── Feature cards ────────────────────────────────────────────────────────────
+// ── Feature card icons (text sourced from i18n) ───────────────────────────────
 
-interface Feature {
-  icon: React.ReactNode;
-  title: string;
-  desc: string;
-}
-
-const FEATURES: Feature[] = [
-  {
-    icon: (
-      <svg viewBox="0 0 20 20" fill="none" className="w-5 h-5">
-        <rect x="3" y="3" width="14" height="14" rx="2" stroke={CYAN} strokeWidth="1.5"/>
-        <path d="M7 10h6M7 13h4" stroke={CYAN} strokeWidth="1.5" strokeLinecap="round"/>
-        <circle cx="10" cy="7" r="1.5" fill={CYAN}/>
-      </svg>
-    ),
-    title: "Diagnóstico acústico",
-    desc: "Resumen detallado de los problemas identificados en tu espacio.",
-  },
-  {
-    icon: (
-      <svg viewBox="0 0 20 20" fill="none" className="w-5 h-5">
-        <path d="M4 10h12M4 6h8M4 14h6" stroke={CYAN} strokeWidth="1.5" strokeLinecap="round"/>
-        <circle cx="15" cy="6" r="2" fill={AMBER} fillOpacity="0.9"/>
-      </svg>
-    ),
-    title: "Plan de tratamiento",
-    desc: "Recomendaciones específicas de aislamiento, absorción y difusión.",
-  },
-  {
-    icon: (
-      <svg viewBox="0 0 20 20" fill="none" className="w-5 h-5">
-        <path d="M10 3v14M3 10h14" stroke={CYAN} strokeWidth="1.5" strokeLinecap="round"/>
-        <rect x="6" y="6" width="8" height="8" rx="1" stroke={CYAN} strokeWidth="1.2" strokeDasharray="2 1"/>
-      </svg>
-    ),
-    title: "Lista de materiales",
-    desc: "Materiales recomendados con proveedores locales por país.",
-  },
-  {
-    icon: (
-      <svg viewBox="0 0 20 20" fill="none" className="w-5 h-5">
-        <rect x="3" y="5" width="14" height="10" rx="1.5" stroke={AMBER} strokeWidth="1.5"/>
-        <path d="M7 9h6M7 12h4" stroke={AMBER} strokeWidth="1.2" strokeLinecap="round"/>
-        <path d="M3 8h14" stroke={AMBER} strokeWidth="1" strokeOpacity="0.5"/>
-      </svg>
-    ),
-    title: "Tabla de presupuesto",
-    desc: "Rangos de costo en USD con opciones económicas y premium.",
-  },
-  {
-    icon: (
-      <svg viewBox="0 0 20 20" fill="none" className="w-5 h-5">
-        <path d="M10 3l1.8 5.5h5.8l-4.7 3.4 1.8 5.6L10 14l-4.7 3.5 1.8-5.6L2.4 8.5h5.8z"
-          stroke={CYAN} strokeWidth="1.5" strokeLinejoin="round"/>
-      </svg>
-    ),
-    title: "Próximos pasos",
-    desc: "Plan de acción numerado para implementar las mejoras acústicas.",
-  },
-  {
-    icon: (
-      <svg viewBox="0 0 20 20" fill="none" className="w-5 h-5">
-        <circle cx="10" cy="10" r="7" stroke={CYAN} strokeWidth="1.5"/>
-        <path d="M10 6v4l3 3" stroke={CYAN} strokeWidth="1.5" strokeLinecap="round"/>
-      </svg>
-    ),
-    title: "Portada profesional",
-    desc: "Reporte con marca Acustega AI, espacio, ciudad y fecha.",
-  },
+const FEATURE_ICONS: React.ReactNode[] = [
+  (
+    <svg viewBox="0 0 20 20" fill="none" className="w-5 h-5">
+      <rect x="3" y="3" width="14" height="14" rx="2" stroke={CYAN} strokeWidth="1.5"/>
+      <path d="M7 10h6M7 13h4" stroke={CYAN} strokeWidth="1.5" strokeLinecap="round"/>
+      <circle cx="10" cy="7" r="1.5" fill={CYAN}/>
+    </svg>
+  ),
+  (
+    <svg viewBox="0 0 20 20" fill="none" className="w-5 h-5">
+      <path d="M4 10h12M4 6h8M4 14h6" stroke={CYAN} strokeWidth="1.5" strokeLinecap="round"/>
+      <circle cx="15" cy="6" r="2" fill={AMBER} fillOpacity="0.9"/>
+    </svg>
+  ),
+  (
+    <svg viewBox="0 0 20 20" fill="none" className="w-5 h-5">
+      <path d="M10 3v14M3 10h14" stroke={CYAN} strokeWidth="1.5" strokeLinecap="round"/>
+      <rect x="6" y="6" width="8" height="8" rx="1" stroke={CYAN} strokeWidth="1.2" strokeDasharray="2 1"/>
+    </svg>
+  ),
+  (
+    <svg viewBox="0 0 20 20" fill="none" className="w-5 h-5">
+      <rect x="3" y="5" width="14" height="10" rx="1.5" stroke={AMBER} strokeWidth="1.5"/>
+      <path d="M7 9h6M7 12h4" stroke={AMBER} strokeWidth="1.2" strokeLinecap="round"/>
+      <path d="M3 8h14" stroke={AMBER} strokeWidth="1" strokeOpacity="0.5"/>
+    </svg>
+  ),
+  (
+    <svg viewBox="0 0 20 20" fill="none" className="w-5 h-5">
+      <path d="M10 3l1.8 5.5h5.8l-4.7 3.4 1.8 5.6L10 14l-4.7 3.5 1.8-5.6L2.4 8.5h5.8z"
+        stroke={CYAN} strokeWidth="1.5" strokeLinejoin="round"/>
+    </svg>
+  ),
+  (
+    <svg viewBox="0 0 20 20" fill="none" className="w-5 h-5">
+      <circle cx="10" cy="10" r="7" stroke={CYAN} strokeWidth="1.5"/>
+      <path d="M10 6v4l3 3" stroke={CYAN} strokeWidth="1.5" strokeLinecap="round"/>
+    </svg>
+  ),
 ];
 
 // ── Rings logo ────────────────────────────────────────────────────────────────
@@ -127,19 +98,8 @@ function Spinner() {
 
 // ── Loading messages ──────────────────────────────────────────────────────────
 
-const LOADING_MESSAGES = [
-  "Calibrando los monitores de tu espacio...",
-  "Calculando cuántos dB necesitas para molestar a tus vecinos...",
-  "Midiendo el tiempo de reverberación... suena a cueva de Batman",
-  "Consultando a Dolby sobre tus esquinas...",
-  "Absorbiendo las frecuencias problemáticas con lana mineral virtual...",
-  "Tu flutter echo tiene flutter echo...",
-  "Aplicando la regla de oro: si suena mal, agrega más trampa de graves",
-  "Generando el PDF con máxima fidelidad... 24 bits, 192kHz",
-  "Casi listo... esperando que el bus de mezcla termine de procesar",
-];
-
-function LoadingMessages() {
+function LoadingMessages({ locale }: { locale: Locale }) {
+  const messages = getLoadingMessages(locale);
   const [index, setIndex] = useState(0);
   const [visible, setVisible] = useState(true);
 
@@ -147,12 +107,12 @@ function LoadingMessages() {
     const interval = setInterval(() => {
       setVisible(false);
       setTimeout(() => {
-        setIndex((i) => (i + 1) % LOADING_MESSAGES.length);
+        setIndex((i) => (i + 1) % messages.length);
         setVisible(true);
       }, 400);
     }, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [messages.length]);
 
   return (
     <div
@@ -173,10 +133,10 @@ function LoadingMessages() {
           maxWidth: 280,
         }}
       >
-        {LOADING_MESSAGES[index]}
+        {messages[index]}
       </p>
       <p className="text-[10px] mt-4" style={{ color: MUTED }}>
-        Generando tu reporte acústico...
+        {t(locale, "reportLoadingFooter")}
       </p>
     </div>
   );
@@ -188,17 +148,22 @@ export default function ReportePage() {
   const router = useRouter();
   const paddleRef = useRef<Paddle | null>(null);
 
+  const [locale,          setLocale]          = useState<Locale>("es");
   const [hasConversation, setHasConversation] = useState(false);
-  const [spaceLabel, setSpaceLabel] = useState<string | null>(null);
-  const [status, setStatus] = useState<"idle" | "paying" | "loading" | "success" | "error">("idle");
-  const [errorMsg, setErrorMsg] = useState("");
-  const [showUpsell, setShowUpsell] = useState(false);
-  const [upsellStatus, setUpsellStatus] = useState<"idle" | "paying" | "loading">("idle");
-  const [promptText, setPromptText] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [spaceLabel,      setSpaceLabel]      = useState<string | null>(null);
+  const [status,          setStatus]          = useState<"idle" | "paying" | "loading" | "success" | "error">("idle");
+  const [errorMsg,        setErrorMsg]        = useState("");
+  const [showUpsell,      setShowUpsell]      = useState(false);
+  const [upsellStatus,    setUpsellStatus]    = useState<"idle" | "paying" | "loading">("idle");
+  const [promptText,      setPromptText]      = useState("");
+  const [copied,          setCopied]          = useState(false);
 
   // Tracks which product is being purchased so eventCallback routes correctly
   const pendingPurchaseType = useRef<"pdf" | "bundle" | "prompt">("pdf");
+
+  // ── Detect locale ────────────────────────────────────────────────────────
+
+  useEffect(() => { setLocale(detectLocale()); }, []);
 
   // ── Load conversation from localStorage ──────────────────────────────────
 
@@ -425,6 +390,9 @@ export default function ReportePage() {
     </svg>
   );
 
+  const features = getFeatures(locale);
+  const pagePreviews = getPagePreviews(locale);
+
   return (
     <>
       <style>{`
@@ -452,7 +420,7 @@ export default function ReportePage() {
             style={{ backgroundColor: `${BORDER}60` }}
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = `${CYAN}20`)}
             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = `${BORDER}60`)}
-            aria-label="Volver"
+            aria-label={t(locale, "back")}
           >
             <svg viewBox="0 0 16 16" fill="none" stroke={CREAM} strokeWidth="1.8"
               strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
@@ -464,7 +432,7 @@ export default function ReportePage() {
 
           <div className="flex flex-col min-w-0 flex-1">
             <span className="text-sm font-bold leading-tight" style={{ color: CREAM }}>
-              Reporte Acústico
+              {t(locale, "reportHeaderTitle")}
             </span>
             <span className="text-[10px]" style={{ color: CYAN }}>
               ACUSTEGA<span style={{ color: AMBER }}>AI</span>
@@ -473,7 +441,7 @@ export default function ReportePage() {
 
           <div className="text-right">
             <span className="text-lg font-bold" style={{ color: AMBER }}>$9.99</span>
-            <span className="text-[10px] block" style={{ color: MUTED }}>USD</span>
+            <span className="text-[10px] block" style={{ color: MUTED }}>{t(locale, "reportPriceLabel")}</span>
           </div>
         </header>
 
@@ -487,13 +455,12 @@ export default function ReportePage() {
           </div>
 
           <h1 className="text-2xl font-bold leading-snug mb-2" style={{ color: CREAM }}>
-            Reporte Profesional<br />
-            <span style={{ color: CYAN }}>de Acústica</span>
+            {t(locale, "reportTitle")}<br />
+            <span style={{ color: CYAN }}>{t(locale, "reportTitleAccent")}</span>
           </h1>
 
           <p className="text-sm max-w-xs leading-relaxed" style={{ color: MUTED }}>
-            Genera un PDF completo con diagnóstico, plan de tratamiento, materiales y presupuesto
-            basado en tu conversación con el asesor.
+            {t(locale, "reportSubtitle")}
           </p>
 
           {spaceLabel && (
@@ -505,7 +472,7 @@ export default function ReportePage() {
                 color: CYAN,
               }}
             >
-              Espacio: {spaceLabel}
+              {t(locale, "reportSpace")}: {spaceLabel}
             </div>
           )}
 
@@ -518,7 +485,7 @@ export default function ReportePage() {
                 color: AMBER,
               }}
             >
-              Completa una consulta con el asesor antes de generar el reporte.
+              {t(locale, "reportNoConversation")}
             </div>
           )}
         </div>
@@ -530,10 +497,10 @@ export default function ReportePage() {
         >
           <p className="text-[10px] font-bold tracking-[0.25em] uppercase mb-4 text-center"
             style={{ color: MUTED }}>
-            Incluye
+            {t(locale, "reportIncludesLabel")}
           </p>
           <div className="grid grid-cols-2 gap-2.5 max-w-md mx-auto">
-            {FEATURES.map((f, i) => (
+            {FEATURE_ICONS.map((icon, i) => (
               <div
                 key={i}
                 className="flex flex-col gap-2 p-3.5 rounded-xl"
@@ -545,14 +512,14 @@ export default function ReportePage() {
               >
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
                   style={{ backgroundColor: `${CYAN}12` }}>
-                  {f.icon}
+                  {icon}
                 </div>
                 <div>
                   <p className="text-xs font-bold leading-tight" style={{ color: CREAM }}>
-                    {f.title}
+                    {features[i]?.title}
                   </p>
                   <p className="text-[11px] leading-relaxed mt-0.5" style={{ color: MUTED }}>
-                    {f.desc}
+                    {features[i]?.desc}
                   </p>
                 </div>
               </div>
@@ -589,7 +556,7 @@ export default function ReportePage() {
                 color: "#22c55e",
               }}
             >
-              🎛️ Reporte descargado exitosamente
+              {t(locale, "reportSuccess")}
             </div>
           )}
 
@@ -616,12 +583,12 @@ export default function ReportePage() {
               (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)";
             }}
           >
-            {/* "Popular" badge */}
+            {/* Badge */}
             <span
               className="absolute top-0 right-0 text-[9px] font-bold px-2 py-0.5 rounded-bl-lg"
               style={{ backgroundColor: AMBER, color: BG }}
             >
-              RECOMENDADO
+              {t(locale, "reportBundleLabel")}
             </span>
             <span className="flex items-center gap-2">
               {isBusy && status === "paying" ? <Spinner /> : (
@@ -630,10 +597,10 @@ export default function ReportePage() {
                   <path d="M3 13h12" stroke={BG} strokeWidth="2" strokeLinecap="round"/>
                 </svg>
               )}
-              Reporte PDF + Prompt de diseño · $13.99
+              {t(locale, "reportBundleBtn")}
             </span>
             <span className="text-[10px] font-normal opacity-80">
-              Incluye prompt para visualizar tu espacio con IA
+              {t(locale, "reportBundleSubtext")}
             </span>
           </button>
 
@@ -659,11 +626,11 @@ export default function ReportePage() {
             }}
           >
             {isBusy ? <Spinner /> : <DownloadIcon />}
-            Solo reporte PDF · $9.99
+            {t(locale, "reportPdfBtn")}
           </button>
 
           <p className="text-[10px] text-center" style={{ color: `${MUTED}60` }}>
-            Pago seguro con Paddle · PDF generado con IA · Acustega AI
+            {t(locale, "reportFooter")}
           </p>
 
           {/* Go to advisor link */}
@@ -673,7 +640,7 @@ export default function ReportePage() {
               className="text-xs font-medium underline"
               style={{ color: CYAN }}
             >
-              Ir al asesor →
+              {t(locale, "goToAdvisor")}
             </button>
           )}
 
@@ -697,7 +664,7 @@ export default function ReportePage() {
         </div>
 
         {/* ── Loading overlay ── */}
-        {status === "loading" && <LoadingMessages />}
+        {status === "loading" && <LoadingMessages locale={locale} />}
 
         {/* ── Upsell overlay ── */}
         {showUpsell && (
@@ -722,9 +689,9 @@ export default function ReportePage() {
                   <div className="w-full flex items-center justify-between">
                     <div>
                       <p className="text-[10px] font-bold tracking-[0.25em] uppercase"
-                        style={{ color: CYAN }}>Prompt listo</p>
+                        style={{ color: CYAN }}>{t(locale, "upsellPromptReady")}</p>
                       <p className="text-sm font-bold mt-0.5" style={{ color: CREAM }}>
-                        Copia y pega en Midjourney o DALL·E
+                        {t(locale, "upsellPromptSubtitle")}
                       </p>
                     </div>
                     <div
@@ -772,7 +739,7 @@ export default function ReportePage() {
                         <svg viewBox="0 0 16 16" fill="none" className="w-4 h-4">
                           <path d="M3 8l3 3 7-7" stroke={BG} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                         </svg>
-                        ¡Copiado!
+                        {t(locale, "upsellCopied")}
                       </>
                     ) : (
                       <>
@@ -780,7 +747,7 @@ export default function ReportePage() {
                           <rect x="5" y="5" width="8" height="8" rx="1.2" stroke={BG} strokeWidth="1.6"/>
                           <path d="M3 11V3h8" stroke={BG} strokeWidth="1.6" strokeLinecap="round"/>
                         </svg>
-                        Copiar prompt
+                        {t(locale, "upsellCopy")}
                       </>
                     )}
                   </button>
@@ -792,7 +759,7 @@ export default function ReportePage() {
                     onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = MUTED)}
                     onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = `${MUTED}70`)}
                   >
-                    Cerrar
+                    {t(locale, "upsellClose")}
                   </button>
                 </>
               ) : upsellStatus === "loading" ? (
@@ -802,8 +769,12 @@ export default function ReportePage() {
                     <circle cx="12" cy="12" r="10" stroke={BORDER} strokeWidth="3"/>
                     <path d="M12 2a10 10 0 0 1 10 10" stroke={CYAN} strokeWidth="3" strokeLinecap="round"/>
                   </svg>
-                  <p className="text-sm font-medium" style={{ color: CREAM }}>Generando prompt de diseño...</p>
-                  <p className="text-xs" style={{ color: MUTED }}>Analizando tu espacio con IA</p>
+                  <p className="text-sm font-medium" style={{ color: CREAM }}>
+                    {t(locale, "upsellGenerating")}
+                  </p>
+                  <p className="text-xs" style={{ color: MUTED }}>
+                    {t(locale, "upsellGeneratingDesc")}
+                  </p>
                 </div>
               ) : (
                 /* ── Default upsell view ── */
@@ -825,17 +796,16 @@ export default function ReportePage() {
                   <div className="text-center">
                     <p className="text-[10px] font-bold tracking-[0.25em] uppercase mb-2"
                       style={{ color: CYAN }}>
-                      Un paso más
+                      {t(locale, "upsellStep")}
                     </p>
                     <h2 className="text-lg font-bold leading-snug mb-1.5" style={{ color: CREAM }}>
-                      Tu espacio ya tiene diagnóstico.
+                      {t(locale, "upsellTitle1")}
                     </h2>
                     <p className="text-base font-bold" style={{ color: CYAN }}>
-                      Ahora visualízalo.
+                      {t(locale, "upsellTitle2")}
                     </p>
                     <p className="text-xs mt-2 leading-relaxed" style={{ color: MUTED }}>
-                      Genera un prompt detallado para crear renders de tu espacio optimizado
-                      usando Midjourney, DALL·E o cualquier IA de imagen.
+                      {t(locale, "upsellDesc")}
                     </p>
                   </div>
 
@@ -862,14 +832,14 @@ export default function ReportePage() {
                     }}
                   >
                     {upsellStatus === "paying" ? (
-                      <><Spinner />Procesando pago...</>
+                      <><Spinner />{t(locale, "upsellProcessing")}</>
                     ) : (
                       <>
                         <svg viewBox="0 0 18 18" fill="none" className="w-4 h-4">
                           <path d="M9 2l2 5h5l-4 3 1.5 5L9 12l-4.5 3L6 10 2 7h5z"
                             stroke={BG} strokeWidth="1.6" strokeLinejoin="round"/>
                         </svg>
-                        Generar prompt de diseño · $4.99
+                        {t(locale, "upsellBtn")}
                       </>
                     )}
                   </button>
@@ -882,7 +852,7 @@ export default function ReportePage() {
                     onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = MUTED)}
                     onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = `${MUTED}70`)}
                   >
-                    No gracias, solo el reporte
+                    {t(locale, "upsellDismiss")}
                   </button>
                 </>
               )}
@@ -898,36 +868,32 @@ export default function ReportePage() {
           <div className="max-w-md mx-auto">
             <p className="text-[10px] font-bold tracking-[0.25em] uppercase mb-4 text-center"
               style={{ color: MUTED }}>
-              Páginas del reporte
+              {t(locale, "reportPagesLabel")}
             </p>
             <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
-              {[
-                { num: "01", label: "Portada",        color: CYAN  },
-                { num: "02", label: "Diagnóstico",    color: CYAN  },
-                { num: "03", label: "Tratamiento",    color: AMBER },
-                { num: "04", label: "Materiales",     color: CYAN  },
-                { num: "05", label: "Presupuesto",    color: AMBER },
-                { num: "06", label: "Próximos pasos", color: CYAN  },
-              ].map((p) => (
-                <div
-                  key={p.num}
-                  className="flex-shrink-0 flex flex-col items-center gap-1.5 p-3 rounded-xl"
-                  style={{
-                    backgroundColor: SURFACE,
-                    border: `1px solid ${BORDER}`,
-                    width: 80,
-                  }}
-                >
-                  <span className="text-xs font-bold" style={{ color: p.color }}>{p.num}</span>
+              {pagePreviews.map((p, i) => {
+                const color = i % 2 === 0 ? CYAN : AMBER;
+                return (
                   <div
-                    className="w-full rounded"
-                    style={{ height: 52, backgroundColor: SURFACE2, border: `1px solid ${p.color}20` }}
-                  />
-                  <span className="text-[9px] text-center leading-tight" style={{ color: MUTED }}>
-                    {p.label}
-                  </span>
-                </div>
-              ))}
+                    key={p.num}
+                    className="flex-shrink-0 flex flex-col items-center gap-1.5 p-3 rounded-xl"
+                    style={{
+                      backgroundColor: SURFACE,
+                      border: `1px solid ${BORDER}`,
+                      width: 80,
+                    }}
+                  >
+                    <span className="text-xs font-bold" style={{ color }}>{p.num}</span>
+                    <div
+                      className="w-full rounded"
+                      style={{ height: 52, backgroundColor: SURFACE2, border: `1px solid ${color}20` }}
+                    />
+                    <span className="text-[9px] text-center leading-tight" style={{ color: MUTED }}>
+                      {p.label}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { Stream } from "@anthropic-ai/sdk/core/streaming";
+import { LOCALE_NAMES, type Locale } from "@/lib/i18n";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -15,7 +16,7 @@ Cuando hayas completado el diagnóstico y entregado tus recomendaciones principa
 Menciona el curso en Hotmart por 197 USD con casos reales de estudios profesionales solo después de haber entregado valor primero, nunca al inicio de la conversación.`;
 
 export async function POST(req: NextRequest) {
-  const { messages, spaceLabel, photo } = await req.json();
+  const { messages, spaceLabel, photo, locale } = await req.json();
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return Response.json(
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest) {
       model: "claude-opus-4-6",
       max_tokens: 1024,
       stream: true,
-      system: `${SYSTEM_PROMPT}\n\nEl usuario quiere asesoría para su espacio: ${spaceLabel}.`,
+      system: `${SYSTEM_PROMPT}\n\nEl usuario quiere asesoría para su espacio: ${spaceLabel}.\n${locale && LOCALE_NAMES[locale as Locale] ? `Respond exclusively in ${LOCALE_NAMES[locale as Locale]}.` : ""}`,
       messages: anthropicMessages,
     });
   } catch (err) {

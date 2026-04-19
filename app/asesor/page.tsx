@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { detectLocale, t, type Locale } from "@/lib/i18n";
 
 const BG      = "#0D1117";
 const SURFACE = "#161B22";
@@ -32,14 +33,24 @@ interface Space {
 // ── Data ───────────────────────────────────────────────────────────────────
 
 const SPACES: Space[] = [
-  { id: "estudio",        label: "Estudio",        emoji: "🎙️", subtitle: "Grabación profesional"  },
-  { id: "home-studio",    label: "Home Studio",    emoji: "🎧", subtitle: "Producción en casa"      },
-  { id: "iglesia",        label: "Iglesia",        emoji: "🏛️", subtitle: "Espacios de culto"       },
-  { id: "restaurante",    label: "Restaurante",    emoji: "🔉", subtitle: "Ambiente y confort"      },
-  { id: "sonido-en-vivo", label: "Sonido en vivo", emoji: "🎤", subtitle: "Eventos y conciertos"    },
-  { id: "oficina",        label: "Oficina",        emoji: "🔇", subtitle: "Productividad y foco"    },
-  { id: "industrial",     label: "Industrial",     emoji: "⚙️", subtitle: "Control de ruido"        },
+  { id: "estudio",        label: "Estudio",        emoji: "🎙️", subtitle: "" },
+  { id: "home-studio",    label: "Home Studio",    emoji: "🎧", subtitle: "" },
+  { id: "iglesia",        label: "Iglesia",        emoji: "🏛️", subtitle: "" },
+  { id: "restaurante",    label: "Restaurante",    emoji: "🔉", subtitle: "" },
+  { id: "sonido-en-vivo", label: "Sonido en vivo", emoji: "🎤", subtitle: "" },
+  { id: "oficina",        label: "Oficina",        emoji: "🔇", subtitle: "" },
+  { id: "industrial",     label: "Industrial",     emoji: "⚙️", subtitle: "" },
 ];
+
+const SPACE_SUBTITLE_KEYS: Record<string, Parameters<typeof t>[1]> = {
+  "estudio":        "spaceSubEstudio",
+  "home-studio":    "spaceSubHomeStudio",
+  "iglesia":        "spaceSubIglesia",
+  "restaurante":    "spaceSubRestaurante",
+  "sonido-en-vivo": "spaceSubSonidoVivo",
+  "oficina":        "spaceSubOficina",
+  "industrial":     "spaceSubIndustrial",
+};
 
 // ── API helper ──────────────────────────────────────────────────────────────
 
@@ -47,12 +58,13 @@ async function streamAssistantReply(
   messages: Message[],
   spaceLabel: string,
   onChunk: (chunk: string) => void,
-  photo?: string | null
+  photo?: string | null,
+  locale?: string
 ): Promise<void> {
   const res = await fetch("/api/asesor", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, spaceLabel, ...(photo ? { photo } : {}) }),
+    body: JSON.stringify({ messages, spaceLabel, ...(photo ? { photo } : {}), locale }),
   });
 
   if (!res.ok) {
@@ -244,6 +256,7 @@ function calcModes(d: number): [number, number, number] {
 
 export default function AsesorPage() {
   const router = useRouter();
+  const [locale,        setLocale]        = useState<Locale>("es");
   const [selectedSpace, setSelectedSpace] = useState<Space | null>(null);
   const [pendingSpace,  setPendingSpace]  = useState<Space | null>(null);
   const [dims,          setDims]          = useState<Dims>({ largo: "", ancho: "", altura: "" });
@@ -259,6 +272,8 @@ export default function AsesorPage() {
   const [inputFocused, setInputFocused] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef       = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { setLocale(detectLocale()); }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -324,15 +339,15 @@ export default function AsesorPage() {
       await streamAssistantReply([trigger], space.label, (chunk) => {
         accumulated += chunk;
         setMessages([{ id: greetingId, role: "assistant", text: accumulated }]);
-      }, opts?.photo);
+      }, opts?.photo, locale);
       const greetingMsg: Message = { id: greetingId, role: "assistant", text: accumulated };
       setApiMessages([trigger, greetingMsg]);
       setIdCounter(2);
     } catch (err: unknown) {
       const msg =
         err instanceof Error && err.message.includes("credit")
-          ? "Saldo insuficiente. Por favor contacta al administrador."
-          : "Error al conectar con el asesor. Por favor intenta de nuevo.";
+          ? t(locale, "errorCredit")
+          : t(locale, "errorConnect");
       setMessages([{ id: greetingId, role: "assistant", text: msg }]);
       setIdCounter(2);
     } finally {
@@ -382,7 +397,7 @@ export default function AsesorPage() {
         setMessages((prev) =>
           prev.map((m) => m.id === assistantId ? { ...m, text: accumulated } : m)
         );
-      });
+      }, undefined, locale);
 
       const assistantMsg: Message = { id: assistantId, role: "assistant", text: accumulated };
       setApiMessages([...history, assistantMsg]);
@@ -391,14 +406,14 @@ export default function AsesorPage() {
       setIsTyping(false);
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === assistantId ? { ...m, text: "Lo siento, hubo un error. Por favor intenta de nuevo." } : m
+          m.id === assistantId ? { ...m, text: t(locale, "errorConnect") } : m
         )
       );
       setIdCounter(assistantId + 1);
     } finally {
       setIsStreaming(false);
     }
-  }, [input, isTyping, isStreaming, idCounter, apiMessages, selectedSpace]);
+  }, [input, isTyping, isStreaming, idCounter, apiMessages, selectedSpace, locale]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") handleSend();
@@ -438,10 +453,10 @@ export default function AsesorPage() {
             {/* Title */}
             <div className="text-center">
               <h1 className="text-lg font-bold leading-snug" style={{ color: CREAM }}>
-                ¿Qué espacio vamos a optimizar?
+                {t(locale, "selectTitle")}
               </h1>
               <p className="text-[12px] mt-1" style={{ color: MUTED }}>
-                Selecciona para comenzar el diagnóstico
+                {t(locale, "selectSubtitle")}
               </p>
             </div>
 
@@ -449,14 +464,17 @@ export default function AsesorPage() {
             <div className="w-full grid grid-cols-2 gap-2">
               {SPACES.map((space, i) => (
                 <div key={space.id} className={i === SPACES.length - 1 ? "col-span-2" : ""}>
-                  <SpaceCard space={space} onSelect={handleSpaceCardClick} />
+                  <SpaceCard
+                    space={{ ...space, subtitle: t(locale, SPACE_SUBTITLE_KEYS[space.id]) }}
+                    onSelect={handleSpaceCardClick}
+                  />
                 </div>
               ))}
             </div>
 
             {/* Footer */}
             <p className="text-[9px] tracking-[0.25em] uppercase mt-2" style={{ color: `${MUTED}45` }}>
-              Powered by Acustega
+              {t(locale, "poweredBy")}
             </p>
           </div>
         </main>
@@ -514,7 +532,7 @@ export default function AsesorPage() {
             <circle cx="8" cy="8" r="2.5"/>
             <path d="M5 3l1-2h4l1 2"/>
           </svg>
-          Subir foto del espacio (opcional)
+          {t(locale, "uploadPhoto")}
         </button>
       )}
     </div>
@@ -545,7 +563,7 @@ export default function AsesorPage() {
               style={{ backgroundColor: `${BORDER}60` }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = `${CYAN}20`)}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = `${BORDER}60`)}
-              aria-label="Volver"
+              aria-label={t(locale, "back")}
             >
               <svg viewBox="0 0 16 16" fill="none" stroke={CREAM} strokeWidth="1.8"
                 strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
@@ -560,7 +578,9 @@ export default function AsesorPage() {
               <span className="text-sm font-semibold leading-tight" style={{ color: CREAM }}>
                 {pendingSpace.label}
               </span>
-              <span className="text-[10px]" style={{ color: CYAN }}>Normativa de ruido</span>
+              <span className="text-[10px]" style={{ color: CYAN }}>
+                {t(locale, "industrialScreenSubtitle")}
+              </span>
             </div>
           </header>
 
@@ -568,13 +588,13 @@ export default function AsesorPage() {
           <div className="flex-1 overflow-y-auto px-5 py-6 flex flex-col gap-5 max-w-md mx-auto w-full">
             <div>
               <p className="text-[10px] font-bold tracking-[0.28em] uppercase mb-1" style={{ color: CYAN }}>
-                Control de ruido industrial
+                {t(locale, "industrialSectionLabel")}
               </p>
               <h2 className="text-base font-bold leading-snug" style={{ color: CREAM }}>
-                ¿En qué país está tu planta?
+                {t(locale, "industrialTitle")}
               </h2>
               <p className="text-[11px] mt-1 leading-relaxed" style={{ color: MUTED }}>
-                Aplicaremos la normativa local vigente en el diagnóstico
+                {t(locale, "industrialSubtitle")}
               </p>
             </div>
 
@@ -582,6 +602,7 @@ export default function AsesorPage() {
             <div className="grid grid-cols-2 gap-2">
               {NORMATIVAS.map((item) => {
                 const selected = normativa?.id === item.id;
+                const label = item.id === "otro" ? t(locale, "countryOther") : item.label;
                 return (
                   <button
                     key={item.id}
@@ -596,7 +617,7 @@ export default function AsesorPage() {
                   >
                     <span className="text-xl leading-none">{item.flag}</span>
                     <span className="text-xs font-bold leading-tight" style={{ color: selected ? CYAN : CREAM }}>
-                      {item.label}
+                      {label}
                     </span>
                     <span className="text-[10px] leading-tight font-mono" style={{ color: selected ? CYAN + "CC" : MUTED }}>
                       {item.normativa}
@@ -624,7 +645,7 @@ export default function AsesorPage() {
                 onMouseEnter={(e) => { if (normativa) { (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 6px 28px ${CYAN}55`; (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)"; } }}
                 onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.boxShadow = normativa ? `0 4px 20px ${CYAN}35` : "none"; (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)"; }}
               >
-                Continuar al asesor
+                {t(locale, "continueBtn")}
                 <svg viewBox="0 0 16 16" fill="none" stroke={BG} strokeWidth="2"
                   strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
                   <path d="M3 8h10M8 3l5 5-5 5" />
@@ -638,7 +659,7 @@ export default function AsesorPage() {
                 onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = MUTED)}
                 onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = `${MUTED}70`)}
               >
-                Saltar todo
+                {t(locale, "skipAll")}
               </button>
             </div>
           </div>
@@ -651,9 +672,9 @@ export default function AsesorPage() {
 
   if (pendingSpace) {
     const dimFields: { key: keyof Dims; label: string }[] = [
-      { key: "largo",  label: "Largo"  },
-      { key: "ancho",  label: "Ancho"  },
-      { key: "altura", label: "Altura" },
+      { key: "largo",  label: t(locale, "dimLargo")  },
+      { key: "ancho",  label: t(locale, "dimAncho")  },
+      { key: "altura", label: t(locale, "dimAltura") },
     ];
 
     const parsed = {
@@ -695,7 +716,7 @@ export default function AsesorPage() {
               style={{ backgroundColor: `${BORDER}60` }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = `${CYAN}20`)}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = `${BORDER}60`)}
-              aria-label="Volver"
+              aria-label={t(locale, "back")}
             >
               <svg viewBox="0 0 16 16" fill="none" stroke={CREAM} strokeWidth="1.8"
                 strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
@@ -713,7 +734,7 @@ export default function AsesorPage() {
                 {pendingSpace.label}
               </span>
               <span className="text-[10px]" style={{ color: CYAN }}>
-                Calculadora de modos de sala
+                {t(locale, "calcScreenSubtitle")}
               </span>
             </div>
           </header>
@@ -724,13 +745,13 @@ export default function AsesorPage() {
             {/* Title */}
             <div>
               <p className="text-[10px] font-bold tracking-[0.28em] uppercase mb-1" style={{ color: CYAN }}>
-                Modos axiales
+                {t(locale, "calcSectionLabel")}
               </p>
               <h2 className="text-base font-bold leading-snug" style={{ color: CREAM }}>
-                Ingresa las dimensiones de tu espacio
+                {t(locale, "calcTitle")}
               </h2>
               <p className="text-[11px] mt-1 leading-relaxed" style={{ color: MUTED }}>
-                Calculamos las frecuencias de resonancia usando f = 343 / (2 × dimensión)
+                {t(locale, "calcSubtitle")}
               </p>
             </div>
 
@@ -775,7 +796,7 @@ export default function AsesorPage() {
                   className="grid grid-cols-4 px-3 py-2"
                   style={{ backgroundColor: SURFACE2 }}
                 >
-                  {["Dimensión", "f₁", "f₂", "f₃"].map((h) => (
+                  {[t(locale, "calcDimension"), "f₁", "f₂", "f₃"].map((h) => (
                     <span key={h} className="text-[10px] font-bold uppercase tracking-wider text-center"
                       style={{ color: CYAN }}>
                       {h}
@@ -813,7 +834,7 @@ export default function AsesorPage() {
                     className="px-3 py-2 text-[10px] leading-relaxed"
                     style={{ backgroundColor: `${AMBER}10`, borderTop: `1px solid ${AMBER}30`, color: `${AMBER}CC` }}
                   >
-                    Los modos f₁ resaltados son los que más afectan tu mezcla. Tratalos primero.
+                    {t(locale, "calcModeNote")}
                   </div>
                 )}
               </div>
@@ -841,7 +862,7 @@ export default function AsesorPage() {
                   (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)";
                 }}
               >
-                Continuar al asesor
+                {t(locale, "continueBtn")}
                 <svg viewBox="0 0 16 16" fill="none" stroke={BG} strokeWidth="2"
                   strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
                   <path d="M3 8h10M8 3l5 5-5 5" />
@@ -855,7 +876,7 @@ export default function AsesorPage() {
                 onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = MUTED)}
                 onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = `${MUTED}70`)}
               >
-                Saltar todo
+                {t(locale, "skipAll")}
               </button>
             </div>
           </div>
@@ -896,7 +917,7 @@ export default function AsesorPage() {
             style={{ backgroundColor: `${BORDER}60` }}
             onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = `${CYAN}20`)}
             onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = `${BORDER}60`)}
-            aria-label="Volver"
+            aria-label={t(locale, "back")}
           >
             <svg viewBox="0 0 16 16" fill="none" stroke={CREAM} strokeWidth="1.8"
               strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
@@ -916,7 +937,7 @@ export default function AsesorPage() {
               {selectedSpace.label}
             </span>
             <span className="text-[10px] leading-tight" style={{ color: CYAN }}>
-              Asesor Acústico · Acustega
+              {t(locale, "chatSubtitle")}
             </span>
           </div>
 
@@ -924,7 +945,7 @@ export default function AsesorPage() {
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <span className="w-1.5 h-1.5 rounded-full"
               style={{ backgroundColor: "#22c55e", boxShadow: "0 0 5px #22c55e" }} />
-            <span className="text-[10px]" style={{ color: `${MUTED}80` }}>En línea</span>
+            <span className="text-[10px]" style={{ color: `${MUTED}80` }}>{t(locale, "online")}</span>
           </div>
 
           {/* Report button */}
@@ -982,7 +1003,7 @@ export default function AsesorPage() {
               onKeyDown={handleKeyDown}
               onFocus={() => setInputFocused(true)}
               onBlur={() => setInputFocused(false)}
-              placeholder="Escribe tu respuesta..."
+              placeholder={t(locale, "inputPlaceholder")}
               disabled={isBusy}
               className="flex-1 bg-transparent text-sm outline-none"
               style={{ color: CREAM, caretColor: CYAN }}
@@ -1010,7 +1031,7 @@ export default function AsesorPage() {
 
           <p className="text-center mt-2 text-[9px] tracking-[0.22em] uppercase"
             style={{ color: `${MUTED}35` }}>
-            Powered by Acustega
+            {t(locale, "poweredBy")}
           </p>
         </div>
       </main>
