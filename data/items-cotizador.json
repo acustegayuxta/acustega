@@ -81,7 +81,15 @@
         {"id":"salida-hdmi","nombre":"Salida HDMI","descripcion":"Caja tuberia SCH40 instalacion","unidad":"unidad","precio":58227},
         {"id":"aire-9000","nombre":"Aire acondicionado 9000 BTU","descripcion":"Inverter 220V instalacion refrigerante","unidad":"unidad","precio":1950000},
         {"id":"aire-12000","nombre":"Aire acondicionado 12000 BTU","descripcion":"Inverter 220V instalacion refrigerante","unidad":"unidad","precio":2100000},
-        {"id":"mantenimiento-aire","nombre":"Mantenimiento aire acondicionado","descripcion":"Refrigerante lavado desengrasado","unidad":"unidad","precio":790454}
+        {"id":"mantenimiento-aire","nombre":"Mantenimiento aire acondicionado","descripcion":"Refrigerante lavado desengrasado","unidad":"unidad","precio":790454},
+        {"id":"cableado-xlr-4ch","nombre":"Cableado XLR balanceado 4 canales","descripcion":"Placa 4 conectores XLR con cable y etiquetado","unidad":"ml","precio":63000},
+        {"id":"cableado-xlr-2ch","nombre":"Cableado XLR balanceado 2 canales","descripcion":"Placa 2 conectores XLR con cable y etiquetado","unidad":"ml","precio":81000},
+        {"id":"instalacion-cableado","nombre":"Instalacion de cableado","descripcion":"Pesca de cableado por tuberia montaje y soldadura de conectores","unidad":"global","precio":297000},
+        {"id":"cinta-led-calida","nombre":"Cinta LED calida instalada","descripcion":"Suministro e instalacion cinta LED 3000K","unidad":"ml","precio":30000},
+        {"id":"ojo-de-buey","nombre":"Ojo de buey LED instalado","descripcion":"Suministro e instalacion luminaria empotrada LED","unidad":"und","precio":107000},
+        {"id":"patch-bay","nombre":"Patch Bay instalado","descripcion":"Instalacion de patch bay","unidad":"ml","precio":58000},
+        {"id":"salida-iluminacion","nombre":"Salida de iluminacion","descripcion":"Punto electrico completo para iluminacion","unidad":"und","precio":90000},
+        {"id":"salida-tomacorriente","nombre":"Salida tomacorriente","descripcion":"Punto electrico completo tomacorriente","unidad":"und","precio":105000}
       ]
     },
     {
