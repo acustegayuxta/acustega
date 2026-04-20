@@ -97,6 +97,18 @@
         {"id":"botada-escombros","nombre":"Botada de escombros","descripcion":"Ayudantes cargue y descargue","unidad":"global","precio":380000},
         {"id":"transporte-personal","nombre":"Transporte personal carpinteria","descripcion":"Por viaje ida y vuelta","unidad":"viaje","precio":300000}
       ]
+    },
+    {
+      "id": "diseno-asesoria",
+      "nombre": "Diseno y Asesoria",
+      "items": [
+        {"id":"diseno-residencial","nombre":"Diseno acustico residencial","descripcion":"Apartamentos casas home studios","unidad":"m2","precio":45000},
+        {"id":"diseno-comercial","nombre":"Diseno acustico comercial","descripcion":"Restaurantes bares tiendas","unidad":"m2","precio":55000},
+        {"id":"diseno-corporativo","nombre":"Diseno acustico corporativo","descripcion":"Oficinas salas de reuniones call centers","unidad":"m2","precio":65000},
+        {"id":"diseno-educativo","nombre":"Diseno acustico educativo","descripcion":"Aulas auditorios bibliotecas","unidad":"m2","precio":60000},
+        {"id":"diseno-hotelero","nombre":"Diseno acustico hotelero","descripcion":"Habitaciones lobbies spa","unidad":"m2","precio":70000},
+        {"id":"diseno-industrial","nombre":"Diseno acustico industrial","descripcion":"Bodegas plantas salas de maquinas","unidad":"m2","precio":75000}
+      ]
     }
   ]
 }
