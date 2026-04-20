@@ -70,7 +70,7 @@ function toCOP(n: number) {
 
 function printQuote(
   client: ClientData,
-  lines: Array<{ item: Item & { catId: string; catNombre: string }; qty: number }>,
+  lines: Array<{ item: Item & { catId: string; catNombre: string }; qty: number; discount: number }>,
   total: number,
 ) {
   const fecha = new Date().toLocaleDateString("es-CO", {
@@ -78,15 +78,19 @@ function printQuote(
   });
 
   const rows = lines
-    .map(({ item, qty }) => {
+    .map(({ item, qty, discount }) => {
       const precioCop = toCOP(item.precio);
-      const subtotal  = precioCop * qty;
+      const subtotal  = precioCop * qty * (1 - discount / 100);
+      const dtoCell   = discount > 0
+        ? `<td style="text-align:center;white-space:nowrap;color:#d97706;font-weight:600">−${discount}%</td>`
+        : `<td style="text-align:center;color:#aaa">—</td>`;
       return `
         <tr>
           <td>${item.nombre}<br><span style="color:#888;font-size:11px">${item.descripcion}</span></td>
           <td style="text-align:center;white-space:nowrap">${qty}</td>
           <td style="text-align:center;white-space:nowrap">${item.unidad}</td>
           <td style="text-align:right;white-space:nowrap">${fmt(precioCop)}</td>
+          ${dtoCell}
           <td style="text-align:right;white-space:nowrap;font-weight:600">${fmt(subtotal)}</td>
         </tr>`;
     })
@@ -163,6 +167,7 @@ function printQuote(
     <th style="text-align:center">Cant.</th>
     <th style="text-align:center">Unidad</th>
     <th style="text-align:right">Precio unit.</th>
+    <th style="text-align:center">Dto.</th>
     <th style="text-align:right">Subtotal</th>
   </tr></thead>
   <tbody>${rows}</tbody>
@@ -248,6 +253,9 @@ export default function CotizadorAdmin() {
   // itemId → quantity
   const [selected, setSelected] = useState<Record<string, number>>({});
 
+  // itemId → discount %
+  const [discounts, setDiscounts] = useState<Record<string, number>>({});
+
   // which categories are expanded
   const [openCats, setOpenCats] = useState<Set<string>>(
     new Set(categorias.map((c) => c.id))
@@ -264,13 +272,16 @@ export default function CotizadorAdmin() {
     () =>
       Object.entries(selected)
         .filter(([, qty]) => qty > 0)
-        .map(([id, qty]) => ({ item: itemMap.get(id)!, qty }))
+        .map(([id, qty]) => ({ item: itemMap.get(id)!, qty, discount: discounts[id] ?? 0 }))
         .filter((l) => l.item),
-    [selected]
+    [selected, discounts]
   );
 
   const total = useMemo(
-    () => selectedLines.reduce((sum, { item, qty }) => sum + toCOP(item.precio) * qty, 0),
+    () => selectedLines.reduce((sum, { item, qty, discount }) => {
+      const sub = toCOP(item.precio) * qty;
+      return sum + sub * (1 - discount / 100);
+    }, 0),
     [selectedLines]
   );
 
@@ -282,7 +293,7 @@ export default function CotizadorAdmin() {
       if (!map.has(key)) map.set(key, { nombre: line.item.catNombre, lines: [], subtotal: 0 });
       const entry = map.get(key)!;
       entry.lines.push(line);
-      entry.subtotal += toCOP(line.item.precio) * line.qty;
+      entry.subtotal += toCOP(line.item.precio) * line.qty * (1 - line.discount / 100);
     }
     return [...map.values()];
   }, [selectedLines]);
@@ -292,10 +303,18 @@ export default function CotizadorAdmin() {
   const set = (field: keyof ClientData) => (v: string) =>
     setClient((prev) => ({ ...prev, [field]: v }));
 
-  const toggleItem = (id: string) =>
+  const toggleItem = (id: string) => {
     setSelected((prev) =>
       prev[id] ? (({ [id]: _, ...rest }) => rest)(prev) : { ...prev, [id]: 1 }
     );
+    setDiscounts((prev) => {
+      if (selected[id]) { const { [id]: _, ...rest } = prev; return rest; }
+      return prev;
+    });
+  };
+
+  const setDiscount = (id: string, pct: number) =>
+    setDiscounts((prev) => ({ ...prev, [id]: Math.min(100, Math.max(0, isNaN(pct) ? 0 : pct)) }));
 
   const setQty = (id: string, qty: number) => {
     if (qty <= 0) setSelected((prev) => (({ [id]: _, ...rest }) => rest)(prev));
@@ -319,10 +338,10 @@ export default function CotizadorAdmin() {
       const res = await fetch("/api/wompi-link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ client, items: selectedLines.map(({ item, qty }) => ({
-          id: item.id, nombre: item.nombre, qty,
+        body: JSON.stringify({ client, items: selectedLines.map(({ item, qty, discount }) => ({
+          id: item.id, nombre: item.nombre, qty, discount,
           precioUsd: item.precio,
-        })), totalUsd: selectedLines.reduce((s, { item, qty }) => s + item.precio * qty, 0) }),
+        })), totalUsd: total }),
       });
       const data = await res.json() as { url?: string; error?: string };
       if (!res.ok || !data.url) throw new Error(data.error ?? "Error generando link");
@@ -498,27 +517,44 @@ export default function CotizadorAdmin() {
                                 </span>
                               </div>
 
-                              {/* Qty input */}
+                              {/* Qty + Discount inputs */}
                               {isChecked && (
-                                <div className="flex items-center gap-1 flex-shrink-0">
-                                  <button
-                                    onClick={() => setQty(item.id, qty - 1)}
-                                    className="w-6 h-6 rounded flex items-center justify-center text-sm font-bold transition-colors"
-                                    style={{ backgroundColor: SURFACE2, color: MUTED, border: `1px solid ${BORDER}` }}
-                                  >−</button>
-                                  <input
-                                    type="number"
-                                    min={1}
-                                    value={qty}
-                                    onChange={(e) => setQty(item.id, parseInt(e.target.value) || 1)}
-                                    className="w-10 text-center text-xs font-bold outline-none rounded"
-                                    style={{ backgroundColor: SURFACE2, border: `1px solid ${CYAN}50`, color: CYAN, padding: "3px 2px" }}
-                                  />
-                                  <button
-                                    onClick={() => setQty(item.id, qty + 1)}
-                                    className="w-6 h-6 rounded flex items-center justify-center text-sm font-bold transition-colors"
-                                    style={{ backgroundColor: SURFACE2, color: CYAN, border: `1px solid ${BORDER}` }}
-                                  >+</button>
+                                <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                                  {/* Qty */}
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      onClick={() => setQty(item.id, qty - 1)}
+                                      className="w-6 h-6 rounded flex items-center justify-center text-sm font-bold transition-colors"
+                                      style={{ backgroundColor: SURFACE2, color: MUTED, border: `1px solid ${BORDER}` }}
+                                    >−</button>
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      value={qty}
+                                      onChange={(e) => setQty(item.id, parseInt(e.target.value) || 1)}
+                                      className="w-10 text-center text-xs font-bold outline-none rounded"
+                                      style={{ backgroundColor: SURFACE2, border: `1px solid ${CYAN}50`, color: CYAN, padding: "3px 2px" }}
+                                    />
+                                    <button
+                                      onClick={() => setQty(item.id, qty + 1)}
+                                      className="w-6 h-6 rounded flex items-center justify-center text-sm font-bold transition-colors"
+                                      style={{ backgroundColor: SURFACE2, color: CYAN, border: `1px solid ${BORDER}` }}
+                                    >+</button>
+                                  </div>
+                                  {/* Discount */}
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-[10px]" style={{ color: MUTED }}>Dto.</span>
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      max={100}
+                                      value={discounts[item.id] ?? 0}
+                                      onChange={(e) => setDiscount(item.id, parseFloat(e.target.value))}
+                                      className="w-10 text-center text-xs font-bold outline-none rounded"
+                                      style={{ backgroundColor: SURFACE2, border: `1px solid ${AMBER}50`, color: AMBER, padding: "3px 2px" }}
+                                    />
+                                    <span className="text-[10px]" style={{ color: MUTED }}>%</span>
+                                  </div>
                                 </div>
                               )}
                             </div>
@@ -573,8 +609,9 @@ export default function CotizadorAdmin() {
                     {cat.nombre}
                   </p>
                   <div className="flex flex-col gap-1.5">
-                    {cat.lines.map(({ item, qty }) => {
-                      const sub = toCOP(item.precio) * qty;
+                    {cat.lines.map(({ item, qty, discount }) => {
+                      const bruto = toCOP(item.precio) * qty;
+                      const sub   = bruto * (1 - discount / 100);
                       return (
                         <div key={item.id} className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
@@ -584,6 +621,11 @@ export default function CotizadorAdmin() {
                             <p className="text-[10px]" style={{ color: MUTED }}>
                               {qty} × {fmt(toCOP(item.precio))}
                             </p>
+                            {discount > 0 && (
+                              <p className="text-[10px] font-semibold" style={{ color: AMBER }}>
+                                −{discount}% descuento
+                              </p>
+                            )}
                           </div>
                           <span className="text-xs font-bold font-mono flex-shrink-0" style={{ color: AMBER }}>
                             {fmt(sub)}
