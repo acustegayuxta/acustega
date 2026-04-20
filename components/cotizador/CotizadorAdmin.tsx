@@ -22,7 +22,7 @@ interface Item {
   nombre: string;
   descripcion: string;
   unidad: string;
-  precio: number;
+  precio: number; // stored in USD, displayed in COP
 }
 
 interface Categoria {
@@ -38,10 +38,11 @@ interface ClientData {
   telefono: string;
   ciudad: string;
   espacio: string;
-  moneda: "USD" | "COP";
-  tasa: string;
   notas: string;
 }
+
+// Fixed COP rate — prices in JSON are in USD
+const TASA_COP = 4200;
 
 // ── Static data ────────────────────────────────────────────────────────────────
 
@@ -55,16 +56,16 @@ const itemMap = new Map<string, Item & { catId: string; catNombre: string }>(
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-function fmt(n: number, moneda: "USD" | "COP" = "USD") {
-  return new Intl.NumberFormat(moneda === "USD" ? "en-US" : "es-CO", {
+function fmt(n: number) {
+  return new Intl.NumberFormat("es-CO", {
     style: "currency",
-    currency: moneda,
-    maximumFractionDigits: moneda === "USD" ? 2 : 0,
+    currency: "COP",
+    maximumFractionDigits: 0,
   }).format(n);
 }
 
-function convertAmt(usd: number, moneda: "USD" | "COP", tasa: number) {
-  return moneda === "COP" ? usd * tasa : usd;
+function toCOP(usd: number) {
+  return usd * TASA_COP;
 }
 
 // ── PDF (client-side print window) ────────────────────────────────────────────
@@ -73,7 +74,6 @@ function printQuote(
   client: ClientData,
   lines: Array<{ item: Item & { catId: string; catNombre: string }; qty: number }>,
   total: number,
-  tasa: number
 ) {
   const fecha = new Date().toLocaleDateString("es-CO", {
     year: "numeric", month: "long", day: "numeric",
@@ -81,15 +81,15 @@ function printQuote(
 
   const rows = lines
     .map(({ item, qty }) => {
-      const precioConv = convertAmt(item.precio, client.moneda, tasa);
-      const subtotal   = precioConv * qty;
+      const precioCop = toCOP(item.precio);
+      const subtotal  = precioCop * qty;
       return `
         <tr>
           <td>${item.nombre}<br><span style="color:#888;font-size:11px">${item.descripcion}</span></td>
           <td style="text-align:center;white-space:nowrap">${qty}</td>
           <td style="text-align:center;white-space:nowrap">${item.unidad}</td>
-          <td style="text-align:right;white-space:nowrap">${fmt(precioConv, client.moneda)}</td>
-          <td style="text-align:right;white-space:nowrap;font-weight:600">${fmt(subtotal, client.moneda)}</td>
+          <td style="text-align:right;white-space:nowrap">${fmt(precioCop)}</td>
+          <td style="text-align:right;white-space:nowrap;font-weight:600">${fmt(subtotal)}</td>
         </tr>`;
     })
     .join("");
@@ -151,7 +151,6 @@ function printQuote(
   <div class="meta">
     <strong>COTIZACIÓN</strong><br>
     ${fecha}${client.ciudad ? `<br>Cliente: ${client.ciudad}` : ""}
-    ${client.moneda === "COP" ? `<br>Tasa: 1 USD = ${fmt(tasa, "COP")} COP` : ""}
   </div>
 </div>
 
@@ -172,13 +171,13 @@ function printQuote(
 </table>
 
 <div class="total-row">
-  Total: <span>${fmt(total, client.moneda)}</span>
+  Total: <span>${fmt(total)}</span>
 </div>
 
 ${client.notas ? `<div class="notes"><h4>Notas</h4><p>${client.notas}</p></div>` : ""}
 
 <div class="footer">
-  Cotización generada con Acustega AI · Precios en ${client.moneda} · Válida por 30 días
+  Cotización generada con Acustega AI · Precios en COP · Válida por 30 días
 </div>
 
 <script>window.onload = () => window.print();</script>
@@ -245,7 +244,7 @@ function Field({
 export default function CotizadorAdmin() {
   const [client, setClient] = useState<ClientData>({
     nombre: "", empresa: "", email: "", telefono: "",
-    ciudad: "", espacio: "", moneda: "USD", tasa: "4000", notas: "",
+    ciudad: "", espacio: "", notas: "",
   });
 
   // itemId → quantity
@@ -263,8 +262,6 @@ export default function CotizadorAdmin() {
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
-  const tasa = parseFloat(client.tasa) || 4000;
-
   const selectedLines = useMemo(
     () =>
       Object.entries(selected)
@@ -275,12 +272,8 @@ export default function CotizadorAdmin() {
   );
 
   const total = useMemo(
-    () =>
-      selectedLines.reduce(
-        (sum, { item, qty }) => sum + convertAmt(item.precio, client.moneda, tasa) * qty,
-        0
-      ),
-    [selectedLines, client.moneda, tasa]
+    () => selectedLines.reduce((sum, { item, qty }) => sum + toCOP(item.precio) * qty, 0),
+    [selectedLines]
   );
 
   // group selected lines by category for the summary
@@ -291,10 +284,10 @@ export default function CotizadorAdmin() {
       if (!map.has(key)) map.set(key, { nombre: line.item.catNombre, lines: [], subtotal: 0 });
       const entry = map.get(key)!;
       entry.lines.push(line);
-      entry.subtotal += convertAmt(line.item.precio, client.moneda, tasa) * line.qty;
+      entry.subtotal += toCOP(line.item.precio) * line.qty;
     }
     return [...map.values()];
-  }, [selectedLines, client.moneda, tasa]);
+  }, [selectedLines]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -318,7 +311,7 @@ export default function CotizadorAdmin() {
       return next;
     });
 
-  const handlePdf = () => printQuote(client, selectedLines, total, tasa);
+  const handlePdf = () => printQuote(client, selectedLines, total);
 
   const handleWompiLink = async () => {
     setLinkError("");
@@ -394,30 +387,6 @@ export default function CotizadorAdmin() {
               <Field label="Teléfono"  value={client.telefono} onChange={set("telefono")} placeholder="+57 300 000 0000" />
               <Field label="Ciudad"    value={client.ciudad}   onChange={set("ciudad")}   placeholder="Medellín" />
               <Field label="Espacio"   value={client.espacio}  onChange={set("espacio")}  placeholder="Estudio de grabación 30m²" />
-
-              {/* Currency toggle */}
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider mb-1.5"
-                  style={{ color: MUTED }}>Moneda</label>
-                <div className="flex rounded-lg overflow-hidden" style={{ border: `1px solid ${BORDER}` }}>
-                  {(["USD", "COP"] as const).map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => setClient((p) => ({ ...p, moneda: m }))}
-                      className="flex-1 py-2 text-xs font-bold transition-all"
-                      style={{
-                        backgroundColor: client.moneda === m ? CYAN : SURFACE2,
-                        color: client.moneda === m ? BG : MUTED,
-                      }}
-                    >{m}</button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Exchange rate */}
-              {client.moneda === "COP" && (
-                <Field label="Tasa USD → COP" value={client.tasa} onChange={set("tasa")} type="number" placeholder="4000" />
-              )}
 
               {/* Notes */}
               <div className="col-span-2">
@@ -527,7 +496,7 @@ export default function CotizadorAdmin() {
                               <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
                                 <span className="text-[10px]" style={{ color: MUTED }}>{item.unidad}</span>
                                 <span className="text-xs font-bold font-mono" style={{ color: isChecked ? AMBER : MUTED }}>
-                                  {fmt(convertAmt(item.precio, client.moneda, tasa), client.moneda)}
+                                  {fmt(toCOP(item.precio))}
                                 </span>
                               </div>
 
@@ -607,7 +576,7 @@ export default function CotizadorAdmin() {
                   </p>
                   <div className="flex flex-col gap-1.5">
                     {cat.lines.map(({ item, qty }) => {
-                      const sub = convertAmt(item.precio, client.moneda, tasa) * qty;
+                      const sub = toCOP(item.precio) * qty;
                       return (
                         <div key={item.id} className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
@@ -615,11 +584,11 @@ export default function CotizadorAdmin() {
                               {item.nombre}
                             </p>
                             <p className="text-[10px]" style={{ color: MUTED }}>
-                              {qty} × {fmt(convertAmt(item.precio, client.moneda, tasa), client.moneda)}
+                              {qty} × {fmt(toCOP(item.precio))}
                             </p>
                           </div>
                           <span className="text-xs font-bold font-mono flex-shrink-0" style={{ color: AMBER }}>
-                            {fmt(sub, client.moneda)}
+                            {fmt(sub)}
                           </span>
                         </div>
                       );
@@ -629,7 +598,7 @@ export default function CotizadorAdmin() {
                       style={{ borderColor: `${BORDER}60` }}>
                       <span style={{ color: MUTED }}>Subtotal {cat.nombre}</span>
                       <span className="font-semibold font-mono" style={{ color: CREAM }}>
-                        {fmt(cat.subtotal, client.moneda)}
+                        {fmt(cat.subtotal)}
                       </span>
                     </div>
                   </div>
@@ -645,16 +614,11 @@ export default function CotizadorAdmin() {
               <div className="flex items-center justify-between">
                 <span className="text-sm font-bold" style={{ color: CYAN }}>Total</span>
                 <span className="text-xl font-bold font-mono" style={{ color: CYAN }}>
-                  {fmt(total, client.moneda)}
+                  {fmt(total)}
                 </span>
               </div>
-              {client.moneda === "COP" && (
-                <p className="text-[10px] mt-1 text-right" style={{ color: `${MUTED}80` }}>
-                  ≈ {fmt(selectedLines.reduce((s, { item, qty }) => s + item.precio * qty, 0), "USD")} USD
-                </p>
-              )}
               <p className="text-[10px] mt-1 text-right" style={{ color: `${MUTED}60` }}>
-                {selectedLines.length} ítem{selectedLines.length !== 1 ? "s" : ""} · Precios en {client.moneda}
+                {selectedLines.length} ítem{selectedLines.length !== 1 ? "s" : ""} · Precios en COP
               </p>
             </div>
           )}
