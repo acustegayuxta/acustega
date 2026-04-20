@@ -36,7 +36,9 @@
         {"id":"cortina-motorizada","nombre":"Cortina acustica motorizada","descripcion":"Cortina Royal sistema motorizado","unidad":"m","precio":1935868},
         {"id":"alfombra","nombre":"Alfombra acustica","descripcion":"Alforex trafico medio","unidad":"m2","precio":308000},
         {"id":"enchape-ceramico","nombre":"Enchape ceramico","descripcion":"Pegacor lechada enchape segun diseno","unidad":"m2","precio":316127},
-        {"id":"enchape-madera","nombre":"Enchape en madera","descripcion":"Fondo madecor 6mm pega PL285","unidad":"m2","precio":455149}
+        {"id":"enchape-madera","nombre":"Enchape en madera","descripcion":"Fondo madecor 6mm pega PL285","unidad":"m2","precio":455149},
+        {"id":"ecobord-12mm","nombre":"Suministro e instalacion Ecobord 12mm","descripcion":"Panel acustico absorbente incluye pega mano de obra y transporte","unidad":"m2","precio":341000},
+        {"id":"corte-ecobord","nombre":"Corte Ecobord","descripcion":"Corte a medida de paneles Ecobord segun diseno","unidad":"m2","precio":10800}
       ]
     },
     {
