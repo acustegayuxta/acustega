@@ -1,0 +1,119 @@
+{
+  "categorias": [
+    {
+      "id": "aislamiento",
+      "nombre": "Aislamiento",
+      "items": [
+        { "id": "ais-01", "nombre": "Lana mineral 50mm", "descripcion": "Panel de lana mineral densidad 40kg/m³ para aislamiento de muros y techos", "unidad": "m²", "precio": 8.50 },
+        { "id": "ais-02", "nombre": "Lana mineral 100mm", "descripcion": "Panel de lana mineral densidad 40kg/m³ doble espesor para alto aislamiento", "unidad": "m²", "precio": 14.00 },
+        { "id": "ais-03", "nombre": "Lana de roca 60kg/m³ 50mm", "descripcion": "Lana de roca alta densidad para aislamiento acústico y térmico", "unidad": "m²", "precio": 11.00 },
+        { "id": "ais-04", "nombre": "Barrera acústica masiva (MLV)", "descripcion": "Membrana vinílica de masa para reducción de transmisión de ruido", "unidad": "m²", "precio": 22.00 },
+        { "id": "ais-05", "nombre": "Membrana antivibración", "descripcion": "Membrana de caucho reciclado para desacoplo estructural de muros flotantes", "unidad": "m²", "precio": 18.00 },
+        { "id": "ais-06", "nombre": "Canal resiliente", "descripcion": "Perfil metálico de desacoplo para montaje de placas de yeso con rotura de puente acústico", "unidad": "ml", "precio": 4.20 },
+        { "id": "ais-07", "nombre": "Perfil metálico para doble muro", "descripcion": "Montante y canal para construcción de muro de doble hoja desacoplado", "unidad": "ml", "precio": 3.50 },
+        { "id": "ais-08", "nombre": "Tablero de yeso 15mm", "descripcion": "Placa de yeso cartón estándar para construcción de muros acústicos", "unidad": "m²", "precio": 7.00 },
+        { "id": "ais-09", "nombre": "Tablero de yeso 12.5mm", "descripcion": "Placa de yeso cartón para capas secundarias de muros multicapa", "unidad": "m²", "precio": 5.50 },
+        { "id": "ais-10", "nombre": "Placa OSB 15mm", "descripcion": "Tablero de virutas orientadas para añadir masa en construcciones de madera", "unidad": "m²", "precio": 12.00 },
+        { "id": "ais-11", "nombre": "Vidrio laminado acústico 6.38mm", "descripcion": "Vidrio doble con cámara de aire para ventanas acústicas de alto aislamiento", "unidad": "m²", "precio": 65.00 },
+        { "id": "ais-12", "nombre": "Vidrio laminado acústico 8.38mm", "descripcion": "Vidrio laminado grueso para máximo aislamiento en ventanas de control", "unidad": "m²", "precio": 85.00 },
+        { "id": "ais-13", "nombre": "Sellante acústico (cartucho)", "descripcion": "Masilla acrílica para sellado de juntas y penetraciones en muros acústicos", "unidad": "und", "precio": 9.00 },
+        { "id": "ais-14", "nombre": "Masilla acústica viscoelástica", "descripcion": "Compuesto amortiguante viscoelástico para aplicar entre capas de tableros", "unidad": "und", "precio": 12.00 },
+        { "id": "ais-15", "nombre": "Cinta acústica de espuma", "descripcion": "Cinta autoadhesiva de espuma de celda cerrada para sellado perimetral de marcos", "unidad": "ml", "precio": 1.80 },
+        { "id": "ais-16", "nombre": "Fieltro de poliéster 25mm", "descripcion": "Manta de fibra de poliéster reciclado como alternativa económica a la lana mineral", "unidad": "m²", "precio": 6.50 },
+        { "id": "ais-17", "nombre": "Neopreno antivibración", "descripcion": "Almohadilla de neopreno para aislamiento de impacto en estructuras flotantes", "unidad": "und", "precio": 2.50 },
+        { "id": "ais-18", "nombre": "Taco antivibración M10", "descripcion": "Elemento de desacoplo de caucho-metal para fijaciones estructurales", "unidad": "und", "precio": 3.00 },
+        { "id": "ais-19", "nombre": "Espuma de melamina 50mm", "descripcion": "Espuma de melamina de alta densidad para sellado técnico y aislamiento en ductos", "unidad": "m²", "precio": 28.00 },
+        { "id": "ais-20", "nombre": "Poliestireno extruido XPS 50mm", "descripcion": "Panel rígido de XPS para aislamiento de piso flotante y base de losa", "unidad": "m²", "precio": 9.50 }
+      ]
+    },
+    {
+      "id": "acondicionamiento",
+      "nombre": "Acondicionamiento Acústico",
+      "items": [
+        { "id": "aco-01", "nombre": "Panel absorbente lana mineral 50mm", "descripcion": "Panel con tela acústica tensada sobre marco de madera, lana mineral 50mm", "unidad": "m²", "precio": 35.00 },
+        { "id": "aco-02", "nombre": "Panel absorbente lana mineral 100mm", "descripcion": "Panel de absorción profunda para frecuencias medias y graves, 100mm", "unidad": "m²", "precio": 52.00 },
+        { "id": "aco-03", "nombre": "Trampa de graves esquinera (corner trap)", "descripcion": "Trampa de graves triangular para esquinas verticales, lana mineral 100mm", "unidad": "und", "precio": 85.00 },
+        { "id": "aco-04", "nombre": "Trampa de graves broadband", "descripcion": "Trampa de graves de banda ancha, cobertura de 40Hz a 300Hz", "unidad": "und", "precio": 120.00 },
+        { "id": "aco-05", "nombre": "Bass trap cilíndrico", "descripcion": "Trampa de graves cilíndrica para esquinas y puntos de acumulación de bajos", "unidad": "und", "precio": 65.00 },
+        { "id": "aco-06", "nombre": "Difusor QRD madera", "descripcion": "Difusor de residuos cuadráticos en madera MDF acabado natural, profundidad 120mm", "unidad": "m²", "precio": 180.00 },
+        { "id": "aco-07", "nombre": "Difusor skyline", "descripcion": "Difusor bidimensional tipo skyline para distribución de reflexiones en 2D", "unidad": "m²", "precio": 220.00 },
+        { "id": "aco-08", "nombre": "Difusor policilíndrico", "descripcion": "Elemento difusor de superficie curva en madera para paredes laterales", "unidad": "ml", "precio": 45.00 },
+        { "id": "aco-09", "nombre": "Panel resonante de membrana", "descripcion": "Panel resonador de membrana sintonizado para absorción selectiva de graves", "unidad": "m²", "precio": 95.00 },
+        { "id": "aco-10", "nombre": "Espuma acústica 50mm (cuña o piramidal)", "descripcion": "Espuma de poliuretano de alta densidad para absorción de medios y agudos", "unidad": "m²", "precio": 22.00 },
+        { "id": "aco-11", "nombre": "Espuma acústica 100mm", "descripcion": "Espuma de poliuretano gruesa para mayor absorción en frecuencias medias", "unidad": "m²", "precio": 38.00 },
+        { "id": "aco-12", "nombre": "Tela acústica transpirable", "descripcion": "Tela de fibra de vidrio o poliéster para revestimiento de paneles absorbentes", "unidad": "m²", "precio": 15.00 },
+        { "id": "aco-13", "nombre": "Panel decorativo absorbente", "descripcion": "Panel absorbente con acabado decorativo impreso, instalación directa en pared", "unidad": "m²", "precio": 75.00 },
+        { "id": "aco-14", "nombre": "Panel cloud de techo", "descripcion": "Panel colgante horizontal para control de reflexiones tempranas desde el techo", "unidad": "m²", "precio": 90.00 },
+        { "id": "aco-15", "nombre": "Kit de reflexión temprana (SBIR)", "descripcion": "Set de paneles para tratamiento de primeras reflexiones laterales y frontales", "unidad": "und", "precio": 380.00 },
+        { "id": "aco-16", "nombre": "Panel de madera perforado", "descripcion": "Panel MDF perforado con lana mineral posterior para absorción selectiva", "unidad": "m²", "precio": 85.00 },
+        { "id": "aco-17", "nombre": "Panel combinado absorción/difusión", "descripcion": "Panel híbrido con zona absorbente y zona difusora en una misma pieza", "unidad": "m²", "precio": 110.00 },
+        { "id": "aco-18", "nombre": "Cortina acústica", "descripcion": "Cortina de tejido denso para control de reverberación y variable acústica", "unidad": "m²", "precio": 55.00 },
+        { "id": "aco-19", "nombre": "Lana mineral desnuda pared (sin tela)", "descripcion": "Lana mineral fijada directamente en muro para absorción económica", "unidad": "m²", "precio": 18.00 },
+        { "id": "aco-20", "nombre": "Marco de madera para panel 60x120cm", "descripcion": "Marco de pino o MDF para construcción de paneles absorbentes estándar", "unidad": "und", "precio": 25.00 },
+        { "id": "aco-21", "nombre": "Gancho de montaje para panel", "descripcion": "Sistema de colgado de acero para montaje de paneles en paredes y techo", "unidad": "und", "precio": 4.50 },
+        { "id": "aco-22", "nombre": "Silicona acústica transparente (cartucho)", "descripcion": "Silicona neutra de alta flexibilidad para fijación de elementos acústicos", "unidad": "und", "precio": 9.50 }
+      ]
+    },
+    {
+      "id": "mobiliario",
+      "nombre": "Mobiliario y Carpintería",
+      "items": [
+        { "id": "mob-01", "nombre": "Puerta acústica STC 38", "descripcion": "Puerta con sello perimetral y umbral automático, aislamiento STC 38dB", "unidad": "und", "precio": 850.00 },
+        { "id": "mob-02", "nombre": "Puerta acústica STC 45", "descripcion": "Puerta maciza con doble sello y cierre hermético, aislamiento STC 45dB", "unidad": "und", "precio": 1400.00 },
+        { "id": "mob-03", "nombre": "Ventana acústica doble vidrio (por m²)", "descripcion": "Ventana de observación con doble vidrio laminado y cámara de aire 100mm", "unidad": "m²", "precio": 320.00 },
+        { "id": "mob-04", "nombre": "Escritorio flotante para productor", "descripcion": "Escritorio en MDF con espacio para monitores y equipos, montaje en pared", "unidad": "und", "precio": 350.00 },
+        { "id": "mob-05", "nombre": "Mueble para mesa de mezclas", "descripcion": "Mueble ergonómico en ángulo para consola o controlador de producción", "unidad": "und", "precio": 480.00 },
+        { "id": "mob-06", "nombre": "Estante flotante para monitores", "descripcion": "Soporte de pared en MDF para monitores de campo cercano, par", "unidad": "und", "precio": 95.00 },
+        { "id": "mob-07", "nombre": "Soporte de monitor de estudio (desktop)", "descripcion": "Base de escritorio con material antivibración para monitor estudio, und", "unidad": "und", "precio": 65.00 },
+        { "id": "mob-08", "nombre": "Rack de equipos 12U", "descripcion": "Rack de montaje en rack 12U con ruedas y panel frontal, cierre con llave", "unidad": "und", "precio": 120.00 },
+        { "id": "mob-09", "nombre": "Rack de equipos 20U", "descripcion": "Rack profesional 20U para sala de control con gestión de cables interna", "unidad": "und", "precio": 185.00 },
+        { "id": "mob-10", "nombre": "Mueble bajo ventana de control", "descripcion": "Mueble a medida bajo la ventana de observación para almacenamiento y apoyo", "unidad": "und", "precio": 260.00 },
+        { "id": "mob-11", "nombre": "Silla de grabación ergonómica", "descripcion": "Silla ajustable sin ruido mecánico para músicos y operadores de estudio", "unidad": "und", "precio": 180.00 },
+        { "id": "mob-12", "nombre": "Atril profesional", "descripcion": "Atril de altura ajustable en acero con base pesada para grabación", "unidad": "und", "precio": 85.00 }
+      ]
+    },
+    {
+      "id": "asesoria",
+      "nombre": "Asesoría y Diseño",
+      "items": [
+        { "id": "ase-01", "nombre": "Videollamada de diagnóstico", "descripcion": "Sesión de 60 min con ingeniero acústico para evaluar el espacio y definir necesidades", "unidad": "und", "precio": 80.00 },
+        { "id": "ase-02", "nombre": "Diseño acústico básico", "descripcion": "Planos de distribución de materiales, especificaciones técnicas y lista de materiales", "unidad": "und", "precio": 350.00 },
+        { "id": "ase-03", "nombre": "Diseño acústico completo", "descripcion": "Proyecto completo con modelado RT60, simulación EASE, planos ejecutivos y memorias", "unidad": "und", "precio": 850.00 },
+        { "id": "ase-04", "nombre": "Medición acústica in-situ", "descripcion": "Medición con analizador calibrado: RT60, SPL, frecuencias de resonancia y modos de sala", "unidad": "und", "precio": 280.00 },
+        { "id": "ase-05", "nombre": "Supervisión de obra (por día)", "descripcion": "Visita de ingeniero acústico para supervisión de instalación de materiales", "unidad": "día", "precio": 150.00 },
+        { "id": "ase-06", "nombre": "Paquete diseño + supervisión completo", "descripcion": "Diseño acústico completo + medición inicial + 3 días de supervisión + informe final", "unidad": "und", "precio": 1200.00 },
+        { "id": "ase-07", "nombre": "Informe de medición post-obra", "descripcion": "Reporte técnico con mediciones antes y después, gráficas de RT60 y certificación de resultados", "unidad": "und", "precio": 180.00 },
+        { "id": "ase-08", "nombre": "Curso de acústica aplicada (Hotmart)", "descripcion": "Acceso al curso online con casos reales de estudios profesionales de Medellín", "unidad": "und", "precio": 197.00 }
+      ]
+    },
+    {
+      "id": "electrico",
+      "nombre": "Instalaciones Eléctricas",
+      "items": [
+        { "id": "ele-01", "nombre": "Cableado balanceado XLR (por metro)", "descripcion": "Cable de par trenzado apantallado para instalación fija de señal de audio", "unidad": "ml", "precio": 3.50 },
+        { "id": "ele-02", "nombre": "Canaleta plástica para cables", "descripcion": "Canaleta PVC autoadhesiva para organización de cableado en paredes", "unidad": "ml", "precio": 2.20 },
+        { "id": "ele-03", "nombre": "Toma eléctrica dedicada 20A", "descripcion": "Circuito independiente con toma dedicada para equipos de audio sensibles", "unidad": "und", "precio": 45.00 },
+        { "id": "ele-04", "nombre": "Tierra física independiente", "descripcion": "Instalación de tierra eléctrica separada para eliminación de ruido de tierra en audio", "unidad": "und", "precio": 180.00 },
+        { "id": "ele-05", "nombre": "Regulador de voltaje 2000VA", "descripcion": "Regulador automático de voltaje para protección de equipos ante fluctuaciones", "unidad": "und", "precio": 95.00 },
+        { "id": "ele-06", "nombre": "UPS 1000VA", "descripcion": "Sistema de alimentación ininterrumpida para equipos críticos de grabación", "unidad": "und", "precio": 120.00 },
+        { "id": "ele-07", "nombre": "Iluminación LED estudio (kit)", "descripcion": "Kit de iluminación LED de bajo ruido electromagnético, temperatura regulable", "unidad": "und", "precio": 85.00 },
+        { "id": "ele-08", "nombre": "Dimmer para iluminación estudio", "descripcion": "Dimmer de baja interferencia para control de intensidad sin ruido en audio", "unidad": "und", "precio": 35.00 },
+        { "id": "ele-09", "nombre": "Regleta profesional con filtro de red", "descripcion": "Regleta con filtro EMI/RFI y protección de sobretensión para rack de audio", "unidad": "und", "precio": 55.00 }
+      ]
+    },
+    {
+      "id": "transporte",
+      "nombre": "Transporte e Instalación",
+      "items": [
+        { "id": "tra-01", "nombre": "Flete local (dentro de la ciudad)", "descripcion": "Transporte de materiales en camión dentro de la ciudad de origen", "unidad": "und", "precio": 45.00 },
+        { "id": "tra-02", "nombre": "Flete nacional (otra ciudad)", "descripcion": "Envío de materiales a otra ciudad del país por transportadora", "unidad": "und", "precio": 120.00 },
+        { "id": "tra-03", "nombre": "Envío internacional", "descripcion": "Exportación de materiales o equipos fuera del país con agente de aduanas", "unidad": "und", "precio": 280.00 },
+        { "id": "tra-04", "nombre": "Mano de obra instalación (por día)", "descripcion": "Jornada de instalación con técnico especializado en acústica de construcción", "unidad": "día", "precio": 120.00 },
+        { "id": "tra-05", "nombre": "Alquiler de andamio (por día)", "descripcion": "Andamio tubular para trabajos en techo y altura, incluye instalación", "unidad": "día", "precio": 35.00 },
+        { "id": "tra-06", "nombre": "Herramientas especializadas (por día)", "descripcion": "Alquiler de pistola de clavos, sierra de panel y herramientas de acústica", "unidad": "día", "precio": 50.00 },
+        { "id": "tra-07", "nombre": "Viáticos de técnico (por día)", "descripcion": "Gastos de desplazamiento, alimentación y hospedaje para técnico fuera de su ciudad", "unidad": "día", "precio": 80.00 },
+        { "id": "tra-08", "nombre": "Embalaje especial de materiales", "descripcion": "Embalaje protector para paneles, difusores y materiales frágiles en tránsito", "unidad": "und", "precio": 25.00 }
+      ]
+    }
+  ]
+}
