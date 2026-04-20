@@ -22,7 +22,7 @@ interface Item {
   nombre: string;
   descripcion: string;
   unidad: string;
-  precio: number; // stored in USD, displayed in COP
+  precio: number; // COP
 }
 
 interface Categoria {
@@ -41,8 +41,6 @@ interface ClientData {
   notas: string;
 }
 
-// Fixed COP rate — prices in JSON are in USD
-const TASA_COP = 4200;
 
 // ── Static data ────────────────────────────────────────────────────────────────
 
@@ -64,8 +62,8 @@ function fmt(n: number) {
   }).format(n);
 }
 
-function toCOP(usd: number) {
-  return usd * TASA_COP;
+function toCOP(n: number) {
+  return n;
 }
 
 // ── PDF (client-side print window) ────────────────────────────────────────────
