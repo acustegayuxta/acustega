@@ -89,7 +89,8 @@
         {"id":"ojo-de-buey","nombre":"Ojo de buey LED instalado","descripcion":"Suministro e instalacion luminaria empotrada LED","unidad":"und","precio":107000},
         {"id":"patch-bay","nombre":"Patch Bay instalado","descripcion":"Instalacion de patch bay","unidad":"ml","precio":58000},
         {"id":"salida-iluminacion","nombre":"Salida de iluminacion","descripcion":"Punto electrico completo para iluminacion","unidad":"und","precio":90000},
-        {"id":"salida-tomacorriente","nombre":"Salida tomacorriente","descripcion":"Punto electrico completo tomacorriente","unidad":"und","precio":105000}
+        {"id":"salida-tomacorriente","nombre":"Salida tomacorriente","descripcion":"Punto electrico completo tomacorriente","unidad":"und","precio":105000},
+        {"id":"soporte-tv","nombre":"Instalacion soporte de TV","descripcion":"Montaje e instalacion de soporte de television","unidad":"und","precio":63000}
       ]
     },
     {

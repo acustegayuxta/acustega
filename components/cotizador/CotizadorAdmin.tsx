@@ -70,7 +70,7 @@ function toCOP(n: number) {
 
 function printQuote(
   client: ClientData,
-  lines: Array<{ item: Item & { catId: string; catNombre: string }; qty: number; discount: number }>,
+  lines: Array<{ item: Item & { catId: string; catNombre: string }; qty: number; discount: number; obs: string }>,
   total: number,
 ) {
   const fecha = new Date().toLocaleDateString("es-CO", {
@@ -78,12 +78,15 @@ function printQuote(
   });
 
   const rows = lines
-    .map(({ item, qty, discount }) => {
+    .map(({ item, qty, discount, obs }) => {
       const precioCop = toCOP(item.precio);
       const subtotal  = precioCop * qty * (1 - discount / 100);
       const dtoCell   = discount > 0
         ? `<td style="text-align:center;white-space:nowrap;color:#d97706;font-weight:600">−${discount}%</td>`
         : `<td style="text-align:center;color:#aaa">—</td>`;
+      const obsRow    = obs
+        ? `<tr><td colspan="6" style="padding:2px 12px 8px;font-size:11px;color:#666;font-style:italic">↳ ${obs}</td></tr>`
+        : "";
       return `
         <tr>
           <td>${item.nombre}<br><span style="color:#888;font-size:11px">${item.descripcion}</span></td>
@@ -92,7 +95,7 @@ function printQuote(
           <td style="text-align:right;white-space:nowrap">${fmt(precioCop)}</td>
           ${dtoCell}
           <td style="text-align:right;white-space:nowrap;font-weight:600">${fmt(subtotal)}</td>
-        </tr>`;
+        </tr>${obsRow}`;
     })
     .join("");
 
@@ -256,6 +259,9 @@ export default function CotizadorAdmin() {
   // itemId → discount %
   const [discounts, setDiscounts] = useState<Record<string, number>>({});
 
+  // itemId → observacion
+  const [observations, setObservations] = useState<Record<string, string>>({});
+
   // which categories are expanded
   const [openCats, setOpenCats] = useState<Set<string>>(
     new Set(categorias.map((c) => c.id))
@@ -272,9 +278,9 @@ export default function CotizadorAdmin() {
     () =>
       Object.entries(selected)
         .filter(([, qty]) => qty > 0)
-        .map(([id, qty]) => ({ item: itemMap.get(id)!, qty, discount: discounts[id] ?? 0 }))
+        .map(([id, qty]) => ({ item: itemMap.get(id)!, qty, discount: discounts[id] ?? 0, obs: observations[id] ?? "" }))
         .filter((l) => l.item),
-    [selected, discounts]
+    [selected, discounts, observations]
   );
 
   const total = useMemo(
@@ -311,10 +317,17 @@ export default function CotizadorAdmin() {
       if (selected[id]) { const { [id]: _, ...rest } = prev; return rest; }
       return prev;
     });
+    setObservations((prev) => {
+      if (selected[id]) { const { [id]: _, ...rest } = prev; return rest; }
+      return prev;
+    });
   };
 
   const setDiscount = (id: string, pct: number) =>
     setDiscounts((prev) => ({ ...prev, [id]: Math.min(100, Math.max(0, isNaN(pct) ? 0 : pct)) }));
+
+  const setObservation = (id: string, text: string) =>
+    setObservations((prev) => text ? { ...prev, [id]: text } : (({ [id]: _, ...rest }) => rest)(prev));
 
   const setQty = (id: string, qty: number) => {
     if (qty <= 0) setSelected((prev) => (({ [id]: _, ...rest }) => rest)(prev));
@@ -477,85 +490,100 @@ export default function CotizadorAdmin() {
                           return (
                             <div
                               key={item.id}
-                              className="flex items-start gap-3 px-4 py-3 transition-colors"
+                              className="flex flex-col px-4 py-3 transition-colors gap-2"
                               style={{
                                 backgroundColor: isChecked ? `${CYAN}08` : "transparent",
                                 borderTop: idx === 0 ? `1px solid ${BORDER}` : `1px solid ${BORDER}40`,
                               }}
                             >
-                              {/* Checkbox */}
-                              <button
-                                onClick={() => toggleItem(item.id)}
-                                className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 mt-0.5 transition-all"
-                                style={{
-                                  backgroundColor: isChecked ? CYAN : "transparent",
-                                  border: `1.5px solid ${isChecked ? CYAN : BORDER}`,
-                                }}
-                              >
-                                {isChecked && (
-                                  <svg viewBox="0 0 10 10" fill="none" className="w-2.5 h-2.5">
-                                    <path d="M2 5l2.5 2.5L8 3" stroke={BG} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                                  </svg>
-                                )}
-                              </button>
+                              {/* Main row */}
+                              <div className="flex items-start gap-3">
+                                {/* Checkbox */}
+                                <button
+                                  onClick={() => toggleItem(item.id)}
+                                  className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 mt-0.5 transition-all"
+                                  style={{
+                                    backgroundColor: isChecked ? CYAN : "transparent",
+                                    border: `1.5px solid ${isChecked ? CYAN : BORDER}`,
+                                  }}
+                                >
+                                  {isChecked && (
+                                    <svg viewBox="0 0 10 10" fill="none" className="w-2.5 h-2.5">
+                                      <path d="M2 5l2.5 2.5L8 3" stroke={BG} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                  )}
+                                </button>
 
-                              {/* Name + description */}
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-semibold leading-tight" style={{ color: isChecked ? CREAM : `${CREAM}90` }}>
-                                  {item.nombre}
-                                </p>
-                                <p className="text-[10px] leading-snug mt-0.5" style={{ color: MUTED }}>
-                                  {item.descripcion}
-                                </p>
-                              </div>
-
-                              {/* Unit + price */}
-                              <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
-                                <span className="text-[10px]" style={{ color: MUTED }}>{item.unidad}</span>
-                                <span className="text-xs font-bold font-mono" style={{ color: isChecked ? AMBER : MUTED }}>
-                                  {fmt(toCOP(item.precio))}
-                                </span>
-                              </div>
-
-                              {/* Qty + Discount inputs */}
-                              {isChecked && (
-                                <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                                  {/* Qty */}
-                                  <div className="flex items-center gap-1">
-                                    <button
-                                      onClick={() => setQty(item.id, qty - 1)}
-                                      className="w-6 h-6 rounded flex items-center justify-center text-sm font-bold transition-colors"
-                                      style={{ backgroundColor: SURFACE2, color: MUTED, border: `1px solid ${BORDER}` }}
-                                    >−</button>
-                                    <input
-                                      type="number"
-                                      min={1}
-                                      value={qty}
-                                      onChange={(e) => setQty(item.id, parseInt(e.target.value) || 1)}
-                                      className="w-10 text-center text-xs font-bold outline-none rounded"
-                                      style={{ backgroundColor: SURFACE2, border: `1px solid ${CYAN}50`, color: CYAN, padding: "3px 2px" }}
-                                    />
-                                    <button
-                                      onClick={() => setQty(item.id, qty + 1)}
-                                      className="w-6 h-6 rounded flex items-center justify-center text-sm font-bold transition-colors"
-                                      style={{ backgroundColor: SURFACE2, color: CYAN, border: `1px solid ${BORDER}` }}
-                                    >+</button>
-                                  </div>
-                                  {/* Discount */}
-                                  <div className="flex items-center gap-1">
-                                    <span className="text-[10px]" style={{ color: MUTED }}>Dto.</span>
-                                    <input
-                                      type="number"
-                                      min={0}
-                                      max={100}
-                                      value={discounts[item.id] ?? 0}
-                                      onChange={(e) => setDiscount(item.id, parseFloat(e.target.value))}
-                                      className="w-10 text-center text-xs font-bold outline-none rounded"
-                                      style={{ backgroundColor: SURFACE2, border: `1px solid ${AMBER}50`, color: AMBER, padding: "3px 2px" }}
-                                    />
-                                    <span className="text-[10px]" style={{ color: MUTED }}>%</span>
-                                  </div>
+                                {/* Name + description */}
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-semibold leading-tight" style={{ color: isChecked ? CREAM : `${CREAM}90` }}>
+                                    {item.nombre}
+                                  </p>
+                                  <p className="text-[10px] leading-snug mt-0.5" style={{ color: MUTED }}>
+                                    {item.descripcion}
+                                  </p>
                                 </div>
+
+                                {/* Unit + price */}
+                                <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
+                                  <span className="text-[10px]" style={{ color: MUTED }}>{item.unidad}</span>
+                                  <span className="text-xs font-bold font-mono" style={{ color: isChecked ? AMBER : MUTED }}>
+                                    {fmt(toCOP(item.precio))}
+                                  </span>
+                                </div>
+
+                                {/* Qty + Discount inputs */}
+                                {isChecked && (
+                                  <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                                    {/* Qty */}
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        onClick={() => setQty(item.id, qty - 1)}
+                                        className="w-6 h-6 rounded flex items-center justify-center text-sm font-bold transition-colors"
+                                        style={{ backgroundColor: SURFACE2, color: MUTED, border: `1px solid ${BORDER}` }}
+                                      >−</button>
+                                      <input
+                                        type="number"
+                                        min={1}
+                                        value={qty}
+                                        onChange={(e) => setQty(item.id, parseInt(e.target.value) || 1)}
+                                        className="w-10 text-center text-xs font-bold outline-none rounded"
+                                        style={{ backgroundColor: SURFACE2, border: `1px solid ${CYAN}50`, color: CYAN, padding: "3px 2px" }}
+                                      />
+                                      <button
+                                        onClick={() => setQty(item.id, qty + 1)}
+                                        className="w-6 h-6 rounded flex items-center justify-center text-sm font-bold transition-colors"
+                                        style={{ backgroundColor: SURFACE2, color: CYAN, border: `1px solid ${BORDER}` }}
+                                      >+</button>
+                                    </div>
+                                    {/* Discount */}
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-[10px]" style={{ color: MUTED }}>Dto.</span>
+                                      <input
+                                        type="number"
+                                        min={0}
+                                        max={100}
+                                        value={discounts[item.id] ?? 0}
+                                        onChange={(e) => setDiscount(item.id, parseFloat(e.target.value))}
+                                        className="w-10 text-center text-xs font-bold outline-none rounded"
+                                        style={{ backgroundColor: SURFACE2, border: `1px solid ${AMBER}50`, color: AMBER, padding: "3px 2px" }}
+                                      />
+                                      <span className="text-[10px]" style={{ color: MUTED }}>%</span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Observacion row */}
+                              {isChecked && (
+                                <input
+                                  type="text"
+                                  value={observations[item.id] ?? ""}
+                                  onChange={(e) => setObservation(item.id, e.target.value)}
+                                  placeholder="Observación (opcional)..."
+                                  className="w-full text-[11px] outline-none px-3 py-1.5 rounded-lg"
+                                  style={{ backgroundColor: SURFACE2, border: `1px solid ${BORDER}`, color: CREAM, caretColor: CYAN }}
+                                />
                               )}
                             </div>
                           );
@@ -609,27 +637,34 @@ export default function CotizadorAdmin() {
                     {cat.nombre}
                   </p>
                   <div className="flex flex-col gap-1.5">
-                    {cat.lines.map(({ item, qty, discount }) => {
+                    {cat.lines.map(({ item, qty, discount, obs }) => {
                       const bruto = toCOP(item.precio) * qty;
                       const sub   = bruto * (1 - discount / 100);
                       return (
-                        <div key={item.id} className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs leading-tight truncate" style={{ color: CREAM }}>
-                              {item.nombre}
-                            </p>
-                            <p className="text-[10px]" style={{ color: MUTED }}>
-                              {qty} × {fmt(toCOP(item.precio))}
-                            </p>
-                            {discount > 0 && (
-                              <p className="text-[10px] font-semibold" style={{ color: AMBER }}>
-                                −{discount}% descuento
+                        <div key={item.id} className="flex flex-col gap-0.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs leading-tight truncate" style={{ color: CREAM }}>
+                                {item.nombre}
                               </p>
-                            )}
+                              <p className="text-[10px]" style={{ color: MUTED }}>
+                                {qty} × {fmt(toCOP(item.precio))}
+                              </p>
+                              {discount > 0 && (
+                                <p className="text-[10px] font-semibold" style={{ color: AMBER }}>
+                                  −{discount}% descuento
+                                </p>
+                              )}
+                            </div>
+                            <span className="text-xs font-bold font-mono flex-shrink-0" style={{ color: AMBER }}>
+                              {fmt(sub)}
+                            </span>
                           </div>
-                          <span className="text-xs font-bold font-mono flex-shrink-0" style={{ color: AMBER }}>
-                            {fmt(sub)}
-                          </span>
+                          {obs && (
+                            <p className="text-[10px] italic px-1" style={{ color: MUTED }}>
+                              {obs}
+                            </p>
+                          )}
                         </div>
                       );
                     })}
