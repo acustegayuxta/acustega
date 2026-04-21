@@ -1,7 +1,10 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { useEffect, useRef, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+export default function Home() {
+  redirect("/lista-espera");
+}
+
+// ── Legacy splash (unused while redirect is active) ──
 
 const BG   = "#0D1117";
 const CYAN = "#00B4D8";
