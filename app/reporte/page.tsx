@@ -158,6 +158,11 @@ export default function ReportePage() {
   const [promptText,      setPromptText]      = useState("");
   const [copied,          setCopied]          = useState(false);
 
+  // Geo-routing
+  const [countryCode,     setCountryCode]     = useState<string | null>(null);
+  const [wompiLoading,    setWompiLoading]    = useState(false);
+  const [wompiError,      setWompiError]      = useState("");
+
   // Tracks which product is being purchased so eventCallback routes correctly
   const pendingPurchaseType = useRef<"pdf" | "bundle" | "prompt">("pdf");
   // Email captured from Paddle checkout.completed event
@@ -166,6 +171,15 @@ export default function ReportePage() {
   // ── Detect locale ────────────────────────────────────────────────────────
 
   useEffect(() => { setLocale(detectLocale()); }, []);
+
+  // ── Detect country for geo-routing ───────────────────────────────────────
+
+  useEffect(() => {
+    fetch("https://ipapi.co/json/")
+      .then((r) => r.json())
+      .then((d: { country_code?: string }) => setCountryCode(d.country_code ?? ""))
+      .catch(() => setCountryCode(""));
+  }, []);
 
   // ── Load conversation from localStorage ──────────────────────────────────
 
@@ -405,6 +419,32 @@ export default function ReportePage() {
     }
   };
 
+  // ── Wompi payment (Colombia only) ────────────────────────────────────────
+
+  const handleWompiReporte = async () => {
+    if (wompiLoading || !hasConversation) return;
+    setWompiLoading(true);
+    setWompiError("");
+    try {
+      const res = await fetch("/api/wompi-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client: { nombre: "", empresa: "", email: "", telefono: "", ciudad: "", espacio: spaceLabel ?? "", tasa: "", notas: "" },
+          items: [{ id: "reporte-acustico", nombre: "Reporte Acústico Acustega AI", qty: 1, precioUsd: 9.5 }],
+          totalUsd: 9.5,
+        }),
+      });
+      const data = await res.json() as { url?: string; error?: string };
+      if (!res.ok || !data.url) throw new Error(data.error ?? "Error generando link");
+      window.open(data.url, "_blank");
+    } catch (err) {
+      setWompiError(err instanceof Error ? err.message : "Error generando link de pago");
+    } finally {
+      setWompiLoading(false);
+    }
+  };
+
   // ── Button helpers ───────────────────────────────────────────────────────
 
   const isBusy = status === "paying" || status === "loading";
@@ -586,78 +626,132 @@ export default function ReportePage() {
             </div>
           )}
 
-          {/* ── Bundle button (highlighted) ── */}
-          <button
-            onClick={handleBuyBundle}
-            disabled={isBusy || !hasConversation || status === "success"}
-            className="w-full flex flex-col items-center gap-1 py-4 rounded-xl text-sm font-bold tracking-wide transition-all relative overflow-hidden"
-            style={{
-              backgroundColor: isBusy || !hasConversation ? `${CYAN}40` : CYAN,
-              color: BG,
-              boxShadow: !isBusy && hasConversation ? `0 4px 24px ${CYAN}45` : "none",
-              opacity: !hasConversation ? 0.5 : 1,
-              cursor: !hasConversation || isBusy ? "not-allowed" : "pointer",
-            }}
-            onMouseEnter={(e) => {
-              if (!isBusy && hasConversation) {
-                (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 6px 32px ${CYAN}60`;
-                (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
-              }
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 4px 24px ${CYAN}45`;
-              (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)";
-            }}
-          >
-            {/* Badge */}
-            <span
-              className="absolute top-0 right-0 text-[9px] font-bold px-2 py-0.5 rounded-bl-lg"
-              style={{ backgroundColor: AMBER, color: BG }}
-            >
-              {t(locale, "reportBundleLabel")}
-            </span>
-            <span className="flex items-center gap-2">
-              {isBusy && status === "paying" ? <Spinner /> : (
-                <svg viewBox="0 0 18 18" fill="none" className="w-4 h-4">
-                  <path d="M9 2v9M5 7l4 4 4-4" stroke={BG} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M3 13h12" stroke={BG} strokeWidth="2" strokeLinecap="round"/>
-                </svg>
+          {/* ── Colombia: Wompi button ── */}
+          {countryCode === "CO" ? (
+            <>
+              {wompiError && (
+                <div
+                  className="w-full px-4 py-3 rounded-xl text-xs text-center"
+                  style={{ backgroundColor: `#ef444415`, border: `1px solid #ef444435`, color: "#ef4444" }}
+                >
+                  {wompiError}
+                </div>
               )}
-              {t(locale, "reportBundleBtn")}
-            </span>
-            <span className="text-[10px] font-normal opacity-80">
-              {t(locale, "reportBundleSubtext")}
-            </span>
-          </button>
+              <button
+                onClick={handleWompiReporte}
+                disabled={wompiLoading || !hasConversation || status === "success"}
+                className="w-full flex flex-col items-center gap-1 py-4 rounded-xl text-sm font-bold tracking-wide transition-all relative overflow-hidden"
+                style={{
+                  backgroundColor: wompiLoading || !hasConversation ? `${CYAN}40` : CYAN,
+                  color: BG,
+                  boxShadow: !wompiLoading && hasConversation ? `0 4px 24px ${CYAN}45` : "none",
+                  opacity: !hasConversation ? 0.5 : 1,
+                  cursor: !hasConversation || wompiLoading ? "not-allowed" : "pointer",
+                }}
+                onMouseEnter={(e) => {
+                  if (!wompiLoading && hasConversation)
+                    (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 6px 32px ${CYAN}60`;
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 4px 24px ${CYAN}45`;
+                }}
+              >
+                <span
+                  className="absolute top-0 right-0 text-[9px] font-bold px-2 py-0.5 rounded-bl-lg"
+                  style={{ backgroundColor: AMBER, color: BG }}
+                >
+                  Pago seguro COP
+                </span>
+                <span className="flex items-center gap-2">
+                  {wompiLoading ? <Spinner /> : (
+                    <svg viewBox="0 0 18 18" fill="none" className="w-4 h-4">
+                      <path d="M9 2v9M5 7l4 4 4-4" stroke={BG} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M3 13h12" stroke={BG} strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
+                  )}
+                  {wompiLoading ? "Generando link..." : "Obtener reporte — $39.900 COP"}
+                </span>
+                <span className="text-[10px] font-normal opacity-80">
+                  PDF + prompt de diseño · Pago con Wompi
+                </span>
+              </button>
+              <p className="text-[10px] text-center" style={{ color: `${MUTED}60` }}>
+                Pago 100% seguro · Wompi · Tarjeta, PSE, Nequi
+              </p>
+            </>
+          ) : (
+            <>
+              {/* ── Internacional: Paddle buttons ── */}
+              <button
+                onClick={handleBuyBundle}
+                disabled={isBusy || !hasConversation || status === "success"}
+                className="w-full flex flex-col items-center gap-1 py-4 rounded-xl text-sm font-bold tracking-wide transition-all relative overflow-hidden"
+                style={{
+                  backgroundColor: isBusy || !hasConversation ? `${CYAN}40` : CYAN,
+                  color: BG,
+                  boxShadow: !isBusy && hasConversation ? `0 4px 24px ${CYAN}45` : "none",
+                  opacity: !hasConversation ? 0.5 : 1,
+                  cursor: !hasConversation || isBusy ? "not-allowed" : "pointer",
+                }}
+                onMouseEnter={(e) => {
+                  if (!isBusy && hasConversation) {
+                    (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 6px 32px ${CYAN}60`;
+                    (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 4px 24px ${CYAN}45`;
+                  (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0)";
+                }}
+              >
+                <span
+                  className="absolute top-0 right-0 text-[9px] font-bold px-2 py-0.5 rounded-bl-lg"
+                  style={{ backgroundColor: AMBER, color: BG }}
+                >
+                  {t(locale, "reportBundleLabel")}
+                </span>
+                <span className="flex items-center gap-2">
+                  {isBusy && status === "paying" ? <Spinner /> : (
+                    <svg viewBox="0 0 18 18" fill="none" className="w-4 h-4">
+                      <path d="M9 2v9M5 7l4 4 4-4" stroke={BG} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M3 13h12" stroke={BG} strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
+                  )}
+                  {t(locale, "reportBundleBtn")}
+                </span>
+                <span className="text-[10px] font-normal opacity-80">
+                  {t(locale, "reportBundleSubtext")}
+                </span>
+              </button>
 
-          {/* ── PDF-only button ── */}
-          <button
-            onClick={handleBuyPdf}
-            disabled={isBusy || !hasConversation || status === "success"}
-            className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl text-sm font-bold tracking-wide transition-all"
-            style={{
-              backgroundColor: "transparent",
-              border: `1.5px solid ${!hasConversation || isBusy ? AMBER + "40" : AMBER}`,
-              color: !hasConversation || isBusy ? `${AMBER}60` : AMBER,
-              opacity: !hasConversation ? 0.5 : 1,
-              cursor: !hasConversation || isBusy ? "not-allowed" : "pointer",
-            }}
-            onMouseEnter={(e) => {
-              if (!isBusy && hasConversation) {
-                (e.currentTarget as HTMLButtonElement).style.backgroundColor = `${AMBER}12`;
-              }
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
-            }}
-          >
-            {isBusy ? <Spinner /> : <DownloadIcon />}
-            {t(locale, "reportPdfBtn")}
-          </button>
+              <button
+                onClick={handleBuyPdf}
+                disabled={isBusy || !hasConversation || status === "success"}
+                className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl text-sm font-bold tracking-wide transition-all"
+                style={{
+                  backgroundColor: "transparent",
+                  border: `1.5px solid ${!hasConversation || isBusy ? AMBER + "40" : AMBER}`,
+                  color: !hasConversation || isBusy ? `${AMBER}60` : AMBER,
+                  opacity: !hasConversation ? 0.5 : 1,
+                  cursor: !hasConversation || isBusy ? "not-allowed" : "pointer",
+                }}
+                onMouseEnter={(e) => {
+                  if (!isBusy && hasConversation)
+                    (e.currentTarget as HTMLButtonElement).style.backgroundColor = `${AMBER}12`;
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
+                }}
+              >
+                {isBusy ? <Spinner /> : <DownloadIcon />}
+                {t(locale, "reportPdfBtn")}
+              </button>
 
-          <p className="text-[10px] text-center" style={{ color: `${MUTED}60` }}>
-            {t(locale, "reportFooter")}
-          </p>
+              <p className="text-[10px] text-center" style={{ color: `${MUTED}60` }}>
+                {t(locale, "reportFooter")}
+              </p>
+            </>
+          )}
 
           {/* Go to advisor link */}
           {!hasConversation && (
