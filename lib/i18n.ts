@@ -386,11 +386,11 @@ const ui = {
     pt: "Somente relatório PDF · $9.99",
   },
   reportFooter: {
-    es: "Pago seguro con Paddle · PDF generado con IA · Acustega AI",
-    en: "Secure payment with Paddle · AI-generated PDF · Acustega AI",
-    fr: "Paiement sécurisé avec Paddle · PDF généré par IA · Acustega AI",
-    it: "Pagamento sicuro con Paddle · PDF generato con IA · Acustega AI",
-    pt: "Pagamento seguro com Paddle · PDF gerado com IA · Acustega AI",
+    es: "Pago seguro con Stripe · PDF generado con IA · Acustega AI",
+    en: "Secure payment with Stripe · AI-generated PDF · Acustega AI",
+    fr: "Paiement sécurisé avec Stripe · PDF généré par IA · Acustega AI",
+    it: "Pagamento sicuro con Stripe · PDF generato con IA · Acustega AI",
+    pt: "Pagamento seguro com Stripe · PDF gerado com IA · Acustega AI",
   },
   goToAdvisor: {
     es: "Ir al asesor →",

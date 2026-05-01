@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { initializePaddle, type Paddle } from "@paddle/paddle-js";
 import { detectLocale, t, getFeatures, getLoadingMessages, getPagePreviews, type Locale } from "@/lib/i18n";
+import PromptQuestionnaire from "@/components/prompt-questionnaire/PromptQuestionnaire";
 
 const BG      = "#0D1117";
 const SURFACE = "#161B22";
@@ -146,26 +146,24 @@ function LoadingMessages({ locale }: { locale: Locale }) {
 
 export default function ReportePage() {
   const router = useRouter();
-  const paddleRef = useRef<Paddle | null>(null);
 
-  const [locale,          setLocale]          = useState<Locale>("es");
-  const [hasConversation, setHasConversation] = useState(false);
-  const [spaceLabel,      setSpaceLabel]      = useState<string | null>(null);
-  const [status,          setStatus]          = useState<"idle" | "paying" | "loading" | "success" | "error">("idle");
-  const [errorMsg,        setErrorMsg]        = useState("");
-  const [showUpsell,      setShowUpsell]      = useState(false);
-  const [upsellStatus,    setUpsellStatus]    = useState<"idle" | "paying" | "loading">("idle");
-  const [promptText,      setPromptText]      = useState("");
-  const [copied,          setCopied]          = useState(false);
+  const [locale,                setLocale]               = useState<Locale>("es");
+  const [hasConversation,       setHasConversation]       = useState(false);
+  const [spaceLabel,            setSpaceLabel]            = useState<string | null>(null);
+  const [conversationMessages,  setConversationMessages]  = useState<Array<{ role: string; text: string }>>([]);
+  const [status,                setStatus]               = useState<"idle" | "paying" | "loading" | "success" | "error">("idle");
+  const [errorMsg,              setErrorMsg]             = useState("");
+  const [showUpsell,            setShowUpsell]           = useState(false);
+  const [upsellStatus,          setUpsellStatus]         = useState<"idle" | "paying" | "loading" | "questionnaire">("idle");
+  const [promptText,            setPromptText]           = useState("");
+  const [copied,                setCopied]               = useState(false);
 
   // Geo-routing
   const [countryCode,     setCountryCode]     = useState<string | null>(null);
   const [wompiLoading,    setWompiLoading]    = useState(false);
   const [wompiError,      setWompiError]      = useState("");
 
-  // Tracks which product is being purchased so eventCallback routes correctly
-  const pendingPurchaseType = useRef<"pdf" | "bundle" | "prompt">("pdf");
-  // Email captured from Paddle checkout.completed event
+  // Email for fire-and-forget delivery after purchase (populated externally if available)
   const buyerEmailRef = useRef<string | null>(null);
 
   // ── Detect locale ────────────────────────────────────────────────────────
@@ -191,6 +189,7 @@ export default function ReportePage() {
         if (parsed.messages && parsed.messages.length > 0) {
           setHasConversation(true);
           setSpaceLabel(parsed.spaceLabel ?? null);
+          setConversationMessages(parsed.messages);
         }
       }
     } catch {
@@ -262,159 +261,87 @@ export default function ReportePage() {
 
       setStatus("success");
       setShowUpsell(true);
+      if (showQuestionnaireAfterPdfRef.current) {
+        showQuestionnaireAfterPdfRef.current = false;
+        setUpsellStatus("questionnaire");
+      }
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Error al generar el reporte.");
       setStatus("error");
     }
   }, [locale]);
 
-  // ── Generate design prompt (called after prompt purchase) ────────────────
+  // ── Keep latest callbacks in refs so closures never go stale ────────────
 
-  const generatePrompt = useCallback(async () => {
-    setUpsellStatus("loading");
-
-    let messages: Array<{ role: string; text: string }> = [];
-    let space = "";
-
-    try {
-      const raw = localStorage.getItem("acustega_reporte");
-      if (!raw) throw new Error("No hay conversación guardada.");
-      const parsed = JSON.parse(raw);
-      messages = parsed.messages ?? [];
-      space = parsed.spaceLabel ?? "Espacio";
-    } catch {
-      setUpsellStatus("idle");
-      return;
-    }
-
-    try {
-      const res = await fetch("/api/prompt-diseno", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages, spaceLabel: space }),
-      });
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error ?? `Error ${res.status}`);
-      }
-
-      const data = await res.json() as { prompt: string };
-      setPromptText(data.prompt);
-      setUpsellStatus("idle");
-    } catch {
-      setUpsellStatus("idle");
-    }
-  }, []);
-
-  // ── Initialize Paddle (once only) ───────────────────────────────────────
-
-  // Keep latest callbacks in refs so eventCallback closure never goes stale
   const generateAndDownloadRef = useRef(generateAndDownload);
   useEffect(() => { generateAndDownloadRef.current = generateAndDownload; }, [generateAndDownload]);
 
-  const generatePromptRef = useRef(generatePrompt);
-  useEffect(() => { generatePromptRef.current = generatePrompt; }, [generatePrompt]);
+  // Signals generateAndDownload to show questionnaire instead of plain upsell after PDF
+  const showQuestionnaireAfterPdfRef = useRef(false);
 
-  const statusRef = useRef(status);
-  useEffect(() => { statusRef.current = status; }, [status]);
+  // ── Handle Stripe return URL params ──────────────────────────────────────
 
   useEffect(() => {
-    console.log("[Paddle] Initializing — environment: sandbox");
-    console.log("[Paddle] Client token:", process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN);
+    const params = new URLSearchParams(window.location.search);
+    const product = params.get("product");
+    const isSuccess = params.get("success") === "true";
+    const isCancelled = params.get("cancelled") === "true";
 
-    initializePaddle({
-      environment: "production",
-      token: process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN!,
-      checkout: {
-        settings: {
-          displayMode: "overlay",
-          theme: "dark",
-          locale: "es",
-        },
-      },
-      eventCallback(event) {
-        console.log("[Paddle] Event:", event.name, event);
-        if (event.name === "checkout.completed") {
-          // Capture buyer email from Paddle event data
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const email = (event.data as any)?.customer?.email as string | undefined;
-          if (email) buyerEmailRef.current = email;
-          if (pendingPurchaseType.current === "prompt") {
-            generatePromptRef.current();
-          } else {
-            generateAndDownloadRef.current();
-          }
-        }
-        if (event.name === "checkout.closed") {
-          if (statusRef.current === "paying") setStatus("idle");
-          if (pendingPurchaseType.current === "prompt") setUpsellStatus("idle");
-        }
-      },
-    })
-      .then((paddle) => {
-        if (paddle) {
-          console.log("[Paddle] Initialized OK:", paddle);
-          paddleRef.current = paddle;
-        } else {
-          console.error("[Paddle] initializePaddle returned null/undefined");
-        }
-      })
-      .catch((err) => {
-        console.error("[Paddle] Initialization error:", err);
-      });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // run once — refs keep callbacks fresh
-
-  // ── DEV bypass: skip checkout ────────────────────────────────────────────
-
-  const handleBypass = () => {
-    console.log("[DEV] Skipping Paddle checkout — calling generateAndDownload directly");
-    generateAndDownloadRef.current();
-  };
-
-  // ── Open Paddle checkout ─────────────────────────────────────────────────
-
-  const openCheckout = (priceId: string, type: "pdf" | "bundle") => {
-    console.log("[Paddle] openCheckout — priceId:", priceId, "type:", type);
-
-    if (!paddleRef.current) {
-      console.error("[Paddle] Not initialized yet");
-      return;
+    if (isSuccess && product) {
+      router.replace("/reporte");
+      if (product === "prompt") {
+        setShowUpsell(true);
+        setUpsellStatus("questionnaire");
+      } else if (product === "bundle") {
+        showQuestionnaireAfterPdfRef.current = true;
+        generateAndDownloadRef.current();
+      } else {
+        generateAndDownloadRef.current();
+      }
+    } else if (isCancelled) {
+      router.replace("/reporte");
+      setErrorMsg("Pago cancelado. Puedes intentarlo de nuevo cuando quieras.");
+      setStatus("error");
     }
-    if (status === "loading" || status === "paying") return;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount
 
-    pendingPurchaseType.current = type;
+  // ── Stripe checkout ───────────────────────────────────────────────────────
+
+  const handleStripeCheckout = async (product: "report" | "bundle" | "prompt") => {
+    if (status === "loading" || status === "paying") return;
     setStatus("paying");
     setErrorMsg("");
-
     try {
-      paddleRef.current.Checkout.open({
-        items: [{ priceId, quantity: 1 }],
+      const res = await fetch("/api/stripe-checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product }),
       });
-      console.log("[Paddle] Checkout.open() called");
+      const data = await res.json() as { url?: string; error?: string };
+      if (!res.ok || !data.url) throw new Error(data.error ?? "Error iniciando pago");
+      window.location.href = data.url;
     } catch (err) {
-      console.error("[Paddle] Checkout.open() error:", err);
+      setErrorMsg(err instanceof Error ? err.message : "Error al iniciar el pago.");
       setStatus("error");
-      setErrorMsg("No se pudo abrir el checkout. Ver consola para detalles.");
     }
   };
 
-  const handleBuyPdf    = () => openCheckout(process.env.NEXT_PUBLIC_PADDLE_PRICE_ID!, "pdf");
-  const handleBuyBundle = () => {
-    console.log("[Bundle] priceId:", process.env.NEXT_PUBLIC_PADDLE_PRICE_BUNDLE_ID);
-    openCheckout(process.env.NEXT_PUBLIC_PADDLE_PRICE_BUNDLE_ID!, "bundle");
-  };
-  const handleBuyPrompt = () => {
-    if (!paddleRef.current || upsellStatus === "paying" || upsellStatus === "loading") return;
-    pendingPurchaseType.current = "prompt";
+  const handleBuyPdf    = () => handleStripeCheckout("report");
+  const handleBuyBundle = () => handleStripeCheckout("bundle");
+  const handleBuyPrompt = async () => {
+    if (upsellStatus === "paying" || upsellStatus === "loading") return;
     setUpsellStatus("paying");
     try {
-      paddleRef.current.Checkout.open({
-        items: [{ priceId: process.env.NEXT_PUBLIC_PADDLE_PRICE_PROMPT_ID!, quantity: 1 }],
+      const res = await fetch("/api/stripe-checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product: "prompt" }),
       });
-    } catch (err) {
-      console.error("[Paddle] Upsell checkout error:", err);
+      const data = await res.json() as { url?: string; error?: string };
+      if (!res.ok || !data.url) throw new Error(data.error ?? "Error iniciando pago");
+      window.location.href = data.url;
+    } catch {
       setUpsellStatus("idle");
     }
   };
@@ -681,7 +608,7 @@ export default function ReportePage() {
             </>
           ) : (
             <>
-              {/* ── Internacional: Paddle buttons ── */}
+              {/* ── Internacional: Stripe buttons ── */}
               <button
                 onClick={handleBuyBundle}
                 disabled={isBusy || !hasConversation || status === "success"}
@@ -764,23 +691,6 @@ export default function ReportePage() {
             </button>
           )}
 
-          {/* DEV bypass — skip Paddle and generate PDF directly */}
-          {process.env.NODE_ENV === "development" && (
-            <button
-              onClick={handleBypass}
-              disabled={!hasConversation || status === "loading"}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-mono transition-all"
-              style={{
-                backgroundColor: "transparent",
-                border: `1px dashed #6b7280`,
-                color: "#6b7280",
-                opacity: !hasConversation ? 0.4 : 1,
-                cursor: !hasConversation ? "not-allowed" : "pointer",
-              }}
-            >
-              🔧 [DEV] Saltar pago → generar PDF
-            </button>
-          )}
         </div>
 
         {/* ── Loading overlay ── */}
@@ -803,7 +713,18 @@ export default function ReportePage() {
                 overflowY: "auto",
               }}
             >
-              {promptText ? (
+              {upsellStatus === "questionnaire" ? (
+                /* ── Questionnaire view (after payment, before generating) ── */
+                <PromptQuestionnaire
+                  initialSpaceLabel={spaceLabel ?? undefined}
+                  messages={conversationMessages}
+                  onGenerated={(prompt) => {
+                    setPromptText(prompt);
+                    setUpsellStatus("idle");
+                  }}
+                  onCancel={() => setShowUpsell(false)}
+                />
+              ) : promptText ? (
                 /* ── Prompt result view ── */
                 <>
                   <div className="w-full flex items-center justify-between">
