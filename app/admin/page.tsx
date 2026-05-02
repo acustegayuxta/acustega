@@ -4,8 +4,10 @@ import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import PromptQuestionnaire from "@/components/prompt-questionnaire/PromptQuestionnaire";
 
-const CotizadorAdmin  = dynamic(() => import("@/components/cotizador/CotizadorAdmin"),        { ssr: false });
-const CasosEstudio    = dynamic(() => import("@/components/casos-estudio/CasosEstudio"),       { ssr: false });
+const CotizadorAdmin    = dynamic(() => import("@/components/cotizador/CotizadorAdmin"),                    { ssr: false });
+const CasosEstudio      = dynamic(() => import("@/components/casos-estudio/CasosEstudio"),                  { ssr: false });
+const BaseConocimiento  = dynamic(() => import("@/components/base-conocimiento/BaseConocimiento"),          { ssr: false });
+const AsesorInterno     = dynamic(() => import("@/components/asesor-interno/AsesorInterno"),                { ssr: false });
 
 const BG      = "#0D1117";
 const SURFACE = "#161B22";
@@ -16,7 +18,7 @@ const CREAM   = "#F0F6FC";
 const MUTED   = "#8B949E";
 const BORDER  = "#30363D";
 
-type Tab = "cotizador" | "cuestionario" | "casos-estudio";
+type Tab = "cotizador" | "cuestionario" | "casos-estudio" | "conocimiento" | "asesor-interno";
 
 // ── Password gate ─────────────────────────────────────────────────────────────
 
@@ -250,7 +252,7 @@ export default function AdminPage() {
         className="flex gap-1 px-6 py-3"
         style={{ borderBottom: `1px solid ${BORDER}` }}
       >
-        {(["cotizador", "cuestionario", "casos-estudio"] as Tab[]).map((t) => (
+        {(["cotizador", "cuestionario", "casos-estudio", "conocimiento", "asesor-interno"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => { setTab(t); setGeneratedPrompt(""); }}
@@ -261,7 +263,11 @@ export default function AdminPage() {
               color: tab === t ? CYAN : MUTED,
             }}
           >
-            {t === "cotizador" ? "Cotizador" : t === "cuestionario" ? "Cuestionario de diseño" : "Casos de Estudio"}
+            {t === "cotizador" ? "Cotizador"
+              : t === "cuestionario" ? "Cuestionario de diseño"
+              : t === "casos-estudio" ? "Casos de Estudio"
+              : t === "conocimiento" ? "Base de conocimiento"
+              : "Asesor interno"}
           </button>
         ))}
       </div>
@@ -272,6 +278,10 @@ export default function AdminPage() {
           <CotizadorAdmin />
         ) : tab === "casos-estudio" ? (
           <CasosEstudio />
+        ) : tab === "conocimiento" ? (
+          <BaseConocimiento />
+        ) : tab === "asesor-interno" ? (
+          <AsesorInterno />
         ) : (
           <div className="px-6 py-6 max-w-2xl mx-auto w-full">
             {/* Context label */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 const BG      = "#0D1117";
 const SURFACE = "#161B22";
@@ -221,12 +221,15 @@ function DetailRow({ label, value, spanFull }: { label: string; value: string; s
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function CasosEstudio() {
-  const [casos,   setCasos]   = useState<CasoEstudio[]>([]);
-  const [form,    setForm]    = useState(EMPTY_FORM);
-  const [loading, setLoading] = useState(false);
-  const [saving,  setSaving]  = useState(false);
-  const [error,   setError]   = useState("");
-  const [success, setSuccess] = useState(false);
+  const [casos,     setCasos]     = useState<CasoEstudio[]>([]);
+  const [form,      setForm]      = useState(EMPTY_FORM);
+  const [loading,   setLoading]   = useState(false);
+  const [saving,    setSaving]    = useState(false);
+  const [error,     setError]     = useState("");
+  const [success,   setSuccess]   = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [aiError,   setAiError]   = useState("");
+  const aiFileRef = useRef<HTMLInputElement>(null);
 
   const loadCasos = useCallback(async () => {
     setLoading(true);
@@ -274,6 +277,38 @@ export default function CasosEstudio() {
     }
   };
 
+  const handleAnalyze = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    setAnalyzing(true);
+    setAiError("");
+    try {
+      const fd = new FormData();
+      files.forEach((f) => fd.append("files", f));
+      const res  = await fetch("/api/admin/analyze-case", { method: "POST", body: fd });
+      const data = await res.json() as { fields?: Record<string, string>; error?: string };
+      if (!res.ok || data.error) { setAiError(data.error ?? "Error al analizar"); return; }
+      if (data.fields) {
+        setForm((prev) => ({
+          ...prev,
+          nombre_proyecto:      data.fields!.nombre_proyecto      ?? prev.nombre_proyecto,
+          ciudad:               data.fields!.ciudad               ?? prev.ciudad,
+          tipo_espacio:         data.fields!.tipo_espacio         ?? prev.tipo_espacio,
+          dimensiones:          data.fields!.dimensiones          ?? prev.dimensiones,
+          materiales_acusticos: data.fields!.materiales_acusticos ?? prev.materiales_acusticos,
+          resultado_medicion:   data.fields!.resultado_medicion   ?? prev.resultado_medicion,
+          problemas_encontrados:data.fields!.problemas_encontrados?? prev.problemas_encontrados,
+          solucion_aplicada:    data.fields!.solucion_aplicada    ?? prev.solucion_aplicada,
+        }));
+      }
+    } catch {
+      setAiError("Error de conexión con la IA");
+    } finally {
+      setAnalyzing(false);
+      if (aiFileRef.current) aiFileRef.current.value = "";
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm("¿Eliminar este caso de estudio?")) return;
     try {
@@ -301,6 +336,60 @@ export default function CasosEstudio() {
         }}
       >
         Los casos guardados se inyectan automáticamente como contexto en el prompt de la IA al generar reportes, para que tenga referencia de proyectos reales de Acustega.
+      </div>
+
+      {/* ── AI Autofill ── */}
+      <div className="flex flex-col gap-3">
+        <input
+          ref={aiFileRef}
+          type="file"
+          multiple
+          accept="image/*,application/pdf"
+          className="hidden"
+          onChange={handleAnalyze}
+        />
+        <button
+          type="button"
+          onClick={() => aiFileRef.current?.click()}
+          disabled={analyzing}
+          className="flex items-center gap-2.5 self-start px-4 py-2.5 rounded-xl text-sm font-bold transition-all"
+          style={{
+            backgroundColor: analyzing ? `#8B5CF620` : `#8B5CF618`,
+            border: `1px solid ${analyzing ? "#8B5CF6" : "#8B5CF640"}`,
+            color: "#8B5CF6",
+            cursor: analyzing ? "not-allowed" : "pointer",
+          }}
+          onMouseEnter={(e) => { if (!analyzing) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#8B5CF628"; }}
+          onMouseLeave={(e) => { if (!analyzing) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#8B5CF618"; }}
+        >
+          {analyzing ? (
+            <>
+              <svg className="w-4 h-4 animate-spin" viewBox="0 0 16 16" fill="none">
+                <circle cx="8" cy="8" r="6" stroke="#8B5CF6" strokeWidth="2" strokeOpacity="0.3"/>
+                <path d="M8 2a6 6 0 0 1 6 6" stroke="#8B5CF6" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+              Analizando con IA…
+            </>
+          ) : (
+            <>
+              <svg viewBox="0 0 18 18" fill="none" className="w-4 h-4">
+                <path d="M9 2l1.5 4H15l-3.5 2.5 1.3 4L9 10.5 5.2 12.5l1.3-4L3 6h4.5z"
+                  stroke="#8B5CF6" strokeWidth="1.5" strokeLinejoin="round"/>
+              </svg>
+              Autocompletar con IA
+            </>
+          )}
+        </button>
+        {analyzing && (
+          <p className="text-xs" style={{ color: "#8B5CF6" }}>
+            Subí fotos o un PDF del proyecto · la IA leerá el contenido y llenará el formulario
+          </p>
+        )}
+        {aiError && (
+          <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: `${RED}15`, color: RED }}>
+            {aiError}
+          </p>
+        )}
       </div>
 
       {/* ── Form ── */}

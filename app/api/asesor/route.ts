@@ -2,8 +2,58 @@ import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { Stream } from "@anthropic-ai/sdk/core/streaming";
 import { LOCALE_NAMES, type Locale } from "@/lib/i18n";
+import { createClient } from "@supabase/supabase-js";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+function adminClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false } }
+  );
+}
+
+function labelToTipoEspacio(label: string): string {
+  const l = label.toLowerCase();
+  if (l.includes("estudio") || l.includes("grabaci") || l.includes("recording")) return "estudio_grabacion";
+  if (l.includes("home") || l.includes("casa")) return "home_studio";
+  if (l.includes("podcast") || l.includes("locuci")) return "podcast";
+  if (l.includes("ensayo") || l.includes("rehearsal")) return "sala_ensayo";
+  return "otro";
+}
+
+async function fetchSpaceContext(spaceLabel: string): Promise<string> {
+  const tipoEspacio = labelToTipoEspacio(spaceLabel);
+  const supabase = adminClient();
+
+  const [proyectosRes, materialesRes] = await Promise.all([
+    supabase
+      .from("acustega_proyectos")
+      .select("nombre,tipo_espacio,ciudad,largo_m,ancho_m,alto_m,materiales_usados,notas")
+      .eq("tipo_espacio", tipoEspacio)
+      .limit(5),
+    supabase
+      .from("acustega_materiales")
+      .select("nombre,tipo,marca,precio_usd_m2,paises_disponibles,notas")
+      .limit(15),
+  ]);
+
+  const proyectos = proyectosRes.data ?? [];
+  const materiales = materialesRes.data ?? [];
+
+  if (!proyectos.length && !materiales.length) return "";
+
+  const parts: string[] = [];
+  if (proyectos.length) {
+    parts.push(`PROYECTOS SIMILARES (tipo: ${tipoEspacio}):\n${JSON.stringify(proyectos, null, 2)}`);
+  }
+  if (materiales.length) {
+    parts.push(`MATERIALES DISPONIBLES EN CATÁLOGO:\n${JSON.stringify(materiales, null, 2)}`);
+  }
+
+  return `\n\nBASE DE CONOCIMIENTO ACUSTEGA:\n${parts.join("\n\n")}`;
+}
 
 const SYSTEM_PROMPT = `Eres el asesor acustico de Acustega, creado por un equipo de ingenieros acusticos con 20 anos de experiencia disenando estudios para Maluma, Karol G, Feid y Sebastian Yatra en Medellin, Colombia. Tu objetivo es diagnosticar el espacio del usuario y guiarlo hacia soluciones concretas.
 
@@ -43,6 +93,8 @@ export async function POST(req: NextRequest) {
     }
   );
 
+  const spaceContext = await fetchSpaceContext(spaceLabel ?? "").catch(() => "");
+
   let stream: Stream<Anthropic.RawMessageStreamEvent>;
 
   try {
@@ -52,7 +104,7 @@ export async function POST(req: NextRequest) {
       model: "claude-opus-4-6",
       max_tokens: 1024,
       stream: true,
-      system: `${SYSTEM_PROMPT}\n\nEl usuario quiere asesoría para su espacio: ${spaceLabel}.\n${locale && LOCALE_NAMES[locale as Locale] ? `Respond exclusively in ${LOCALE_NAMES[locale as Locale]}.` : ""}`,
+      system: `${SYSTEM_PROMPT}\n\nEl usuario quiere asesoría para su espacio: ${spaceLabel}.${spaceContext}\n${locale && LOCALE_NAMES[locale as Locale] ? `Respond exclusively in ${LOCALE_NAMES[locale as Locale]}.` : ""}`,
       messages: anthropicMessages,
     });
   } catch (err) {
