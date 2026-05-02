@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 const BG      = "#0D1117";
@@ -134,13 +135,78 @@ function RingsLogo({ size = 40 }: { size?: number }) {
   );
 }
 
+// ── Splash ────────────────────────────────────────────────────────────────────
+
+function SplashScreen({ fading }: { fading: boolean }) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 9999,
+        backgroundColor: BG,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        transition: "opacity 0.8s ease-out",
+        opacity: fading ? 0 : 1,
+        pointerEvents: fading ? "none" : "auto",
+      }}
+    >
+      {/* Ripple rings container */}
+      <div style={{ position: "relative", width: 160, height: 160, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {[0, 0.55, 1.1, 1.65].map((delay, i) => (
+          <div
+            key={i}
+            style={{
+              position: "absolute",
+              width: "100%",
+              height: "100%",
+              borderRadius: "50%",
+              border: `1.5px solid ${CYAN}`,
+              animation: `splash-ripple 2.2s ease-out ${delay}s infinite`,
+            }}
+          />
+        ))}
+        <RingsLogo size={60} />
+      </div>
+
+      <p
+        style={{
+          fontFamily: "var(--font-outfit)",
+          fontWeight: 700,
+          fontSize: 17,
+          letterSpacing: "0.22em",
+          color: CYAN,
+          marginTop: 28,
+        }}
+      >
+        ACUSTEGA<span style={{ color: AMBER }}>AI</span>
+      </p>
+      <p style={{ fontSize: 11, letterSpacing: "0.14em", color: MUTED, marginTop: 6 }}>
+        Inteligencia Acústica
+      </p>
+    </div>
+  );
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function Home() {
   const router = useRouter();
+  const [splashFading, setSplashFading] = useState(false);
+  const [splashDone,   setSplashDone]   = useState(false);
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setSplashFading(true), 2500);
+    const t2 = setTimeout(() => setSplashDone(true),   3300);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
 
   return (
     <>
+      {!splashDone && <SplashScreen fading={splashFading} />}
       <style>{`
         @keyframes fade-up {
           from { opacity: 0; transform: translateY(20px); }
@@ -149,6 +215,10 @@ export default function Home() {
         @keyframes pulse-ring {
           0%, 100% { opacity: 0.4; transform: scale(1); }
           50%       { opacity: 0.15; transform: scale(1.04); }
+        }
+        @keyframes splash-ripple {
+          0%   { transform: scale(0.12); opacity: 0.9; }
+          100% { transform: scale(1);    opacity: 0;   }
         }
         .fade-up { animation: fade-up 0.7s ease-out both; }
       `}</style>
