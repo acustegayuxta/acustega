@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 const BG      = "#0D1117";
 const SURFACE = "#161B22";
@@ -27,7 +27,7 @@ const SECTIONS = [
   { label: "Presupuesto y plazos",   color: ORANGE },
 ];
 
-type QType = "text" | "textarea" | "select" | "radio";
+type QType = "text" | "textarea" | "select" | "radio" | "number";
 
 interface Question {
   id: string;
@@ -37,6 +37,8 @@ interface Question {
   placeholder?: string;
   options?: string[];
   required?: boolean;
+  unit?: string;
+  groupRow?: string;
 }
 
 const QUESTIONS: Question[] = [
@@ -45,7 +47,9 @@ const QUESTIONS: Question[] = [
   { id: "ubicacion",         section: 0, required: true,  type: "text",     label: "¿Ciudad y país donde está ubicado?",                    placeholder: "Ej: Medellín, Colombia" },
   { id: "tipo_proyecto",     section: 0,                  type: "radio",    label: "¿Es obra nueva o renovación de un espacio existente?",  options: ["Obra nueva", "Renovación / adecuación", "Adaptación de local comercial"] },
   { id: "tipo_espacio",      section: 0, required: true,  type: "select",   label: "Tipo principal del espacio",                            options: ["Estudio de grabación profesional", "Home studio", "Sala de ensayo", "Podcast studio", "Sala de mezcla y mastering", "Auditorio o sala de eventos", "Sala de conferencias", "Otro"] },
-  { id: "area_m2",           section: 0,                  type: "text",     label: "¿Área aproximada del espacio? (m²)",                    placeholder: "Ej: 25 m²" },
+  { id: "largo_m",           section: 0,                  type: "number",   label: "Largo",  unit: "m", groupRow: "dims", placeholder: "0.0" },
+  { id: "ancho_m",           section: 0,                  type: "number",   label: "Ancho",  unit: "m", groupRow: "dims", placeholder: "0.0" },
+  { id: "alto_m",            section: 0,                  type: "number",   label: "Alto",   unit: "m", groupRow: "dims", placeholder: "0.0" },
 
   // ── Uso ──
   { id: "uso_principal",     section: 1, required: true,  type: "textarea", label: "¿Cuál es el uso principal del espacio?",                placeholder: "Grabación de voz, mezcla, mastering, ensayos de banda…" },
@@ -127,6 +131,39 @@ function SelectInput({ value, onChange, options }: { value: string; onChange: (v
       <option value="">— Seleccionar —</option>
       {options.map((o) => <option key={o} value={o} style={{ backgroundColor: SURFACE2, color: CREAM }}>{o}</option>)}
     </select>
+  );
+}
+
+function NumberInput({ value, onChange, placeholder, unit }: {
+  value: string; onChange: (v: string) => void; placeholder?: string; unit?: string;
+}) {
+  return (
+    <div className="relative">
+      <input
+        type="number"
+        inputMode="decimal"
+        min="0"
+        step="0.1"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full px-3 py-2.5 rounded-lg text-sm outline-none"
+        style={{
+          backgroundColor: SURFACE2,
+          border: `1px solid ${BORDER}`,
+          color: CREAM,
+          paddingRight: unit ? "2rem" : undefined,
+        }}
+        onFocus={(e) => (e.currentTarget.style.borderColor = CYAN)}
+        onBlur={(e)  => (e.currentTarget.style.borderColor = BORDER)}
+      />
+      {unit && (
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs pointer-events-none"
+          style={{ color: MUTED }}>
+          {unit}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -257,6 +294,19 @@ export default function AsesorInterno() {
   const [prompt,         setPrompt]         = useState("");
   const [error,          setError]          = useState("");
 
+  // Space reference image (base64 DataURL)
+  const [spaceImage, setSpaceImage] = useState("");
+  const imageRef = useRef<HTMLInputElement>(null);
+
+  const handleImageFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setSpaceImage(reader.result as string);
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
   // PDF report
   const [generatingPdf,  setGeneratingPdf]  = useState(false);
   const [pdfError,       setPdfError]       = useState("");
@@ -318,7 +368,7 @@ export default function AsesorInterno() {
       const res = await fetch("/api/admin/generate-report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answers }),
+        body: JSON.stringify({ answers, ...(spaceImage ? { image: spaceImage } : {}) }),
       });
       if (!res.ok) {
         const data = await res.json() as { error?: string };
@@ -439,15 +489,111 @@ export default function AsesorInterno() {
       {/* Questions */}
       <div className="flex flex-col gap-5 rounded-xl p-5"
         style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }}>
-        {sectionQuestions.map((q) => (
-          <Field key={q.id} label={q.label} required={q.required} color={sectionColor}>
-            {q.type === "text"     && <TextInput   value={answers[q.id] ?? ""} onChange={set(q.id)} placeholder={q.placeholder} />}
-            {q.type === "textarea" && <TextArea    value={answers[q.id] ?? ""} onChange={set(q.id)} placeholder={q.placeholder} />}
-            {q.type === "select"   && <SelectInput value={answers[q.id] ?? ""} onChange={set(q.id)} options={q.options!} />}
-            {q.type === "radio"    && <RadioInput  value={answers[q.id] ?? ""} onChange={set(q.id)} options={q.options!} color={sectionColor} />}
-          </Field>
-        ))}
+        {(() => {
+          const seen = new Set<string>();
+          return sectionQuestions.map((q) => {
+            if (q.groupRow) {
+              if (seen.has(q.groupRow)) return null;
+              seen.add(q.groupRow);
+              const group = sectionQuestions.filter((x) => x.groupRow === q.groupRow);
+              return (
+                <Field key={q.groupRow} label="Dimensiones del espacio" color={sectionColor}>
+                  <div className="grid grid-cols-3 gap-2">
+                    {group.map((gq) => (
+                      <div key={gq.id} className="flex flex-col gap-1">
+                        <span className="text-[10px]" style={{ color: MUTED }}>{gq.label}</span>
+                        <NumberInput
+                          value={answers[gq.id] ?? ""}
+                          onChange={set(gq.id)}
+                          placeholder={gq.placeholder}
+                          unit={gq.unit}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </Field>
+              );
+            }
+            return (
+              <Field key={q.id} label={q.label} required={q.required} color={sectionColor}>
+                {q.type === "text"     && <TextInput   value={answers[q.id] ?? ""} onChange={set(q.id)} placeholder={q.placeholder} />}
+                {q.type === "textarea" && <TextArea    value={answers[q.id] ?? ""} onChange={set(q.id)} placeholder={q.placeholder} />}
+                {q.type === "select"   && <SelectInput value={answers[q.id] ?? ""} onChange={set(q.id)} options={q.options!} />}
+                {q.type === "radio"    && <RadioInput  value={answers[q.id] ?? ""} onChange={set(q.id)} options={q.options!} color={sectionColor} />}
+              </Field>
+            );
+          });
+        })()}
       </div>
+
+      {/* Image upload — section 0 only */}
+      {currentSection === 0 && (
+        <div className="flex flex-col gap-3 rounded-xl p-5"
+          style={{ backgroundColor: SURFACE, border: `1px solid ${BORDER}` }}>
+          <p className="text-xs font-bold" style={{ color: CREAM }}>
+            Imagen de referencia del espacio
+            <span className="ml-2 font-normal text-[10px]" style={{ color: MUTED }}>opcional · Claude la analizará con visión</span>
+          </p>
+
+          <input
+            ref={imageRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleImageFile}
+          />
+
+          {spaceImage ? (
+            <div className="relative rounded-xl overflow-hidden" style={{ maxHeight: 240 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={spaceImage}
+                alt="Vista previa del espacio"
+                className="w-full object-cover"
+                style={{ maxHeight: 240 }}
+              />
+              <button
+                onClick={() => setSpaceImage("")}
+                className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center transition-opacity"
+                style={{ backgroundColor: `${BG}cc` }}
+                title="Eliminar imagen"
+              >
+                <svg viewBox="0 0 12 12" fill="none" className="w-3 h-3">
+                  <path d="M2 2l8 8M10 2l-8 8" stroke={CREAM} strokeWidth="1.6" strokeLinecap="round"/>
+                </svg>
+              </button>
+              <div
+                className="absolute bottom-0 left-0 right-0 px-3 py-1.5 text-[10px]"
+                style={{ backgroundColor: `${BG}bb`, color: MUTED }}
+              >
+                Imagen cargada — se enviará a Claude para análisis visual
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => imageRef.current?.click()}
+              className="w-full py-7 rounded-xl border-2 border-dashed flex flex-col items-center gap-2 transition-all"
+              style={{ borderColor: BORDER, color: MUTED }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = CYAN;
+                e.currentTarget.style.color = CYAN;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = BORDER;
+                e.currentTarget.style.color = MUTED;
+              }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8">
+                <rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="1.5"/>
+                <circle cx="8.5" cy="8.5" r="1.5" stroke="currentColor" strokeWidth="1.3"/>
+                <path d="M3 15l5-5 4 4 3-3 6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span className="text-sm font-medium">Subir foto del espacio</span>
+              <span className="text-[11px]">JPG, PNG, WEBP</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Error */}
       {error && (

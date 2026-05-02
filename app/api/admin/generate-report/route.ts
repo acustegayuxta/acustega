@@ -20,7 +20,7 @@ function answersToText(answers: Record<string, string>): string {
         ["Ubicación", q("ubicacion")],
         ["Tipo de proyecto", q("tipo_proyecto")],
         ["Tipo de espacio", q("tipo_espacio")],
-        ["Área aproximada", q("area_m2")],
+        ["Dimensiones objetivo", [q("largo_m") && `L: ${q("largo_m")}m`, q("ancho_m") && `A: ${q("ancho_m")}m`, q("alto_m") && `H: ${q("alto_m")}m`].filter(Boolean).join(" × ") || ""],
       ],
     },
     {
@@ -89,14 +89,32 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "ANTHROPIC_API_KEY no configurado" }, { status: 500 });
   }
 
-  const { answers } = await req.json() as { answers: Record<string, string> };
+  const { answers, image } = await req.json() as {
+    answers: Record<string, string>;
+    image?: string;
+  };
 
   if (!answers || !Object.keys(answers).length) {
     return Response.json({ error: "No se recibieron respuestas del cuestionario" }, { status: 400 });
   }
 
-  const briefText = answersToText(answers);
+  const briefText  = answersToText(answers);
   const spaceLabel = answers.nombre_proyecto || answers.tipo_espacio || "Espacio acústico";
+  const textBlock  = `Espacio: ${spaceLabel}\n\nCUESTIONARIO DE PROYECTO (respondido por el cliente):\n\n${briefText}`;
+
+  // Build message content — prepend image block if provided
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const messageContent: any[] = [];
+  if (image) {
+    const mimeMatch = image.match(/^data:(image\/\w+);base64,/);
+    const mediaType = (mimeMatch?.[1] ?? "image/jpeg") as "image/jpeg" | "image/png" | "image/webp" | "image/gif";
+    const base64Data = image.split(",")[1];
+    messageContent.push({
+      type: "image",
+      source: { type: "base64", media_type: mediaType, data: base64Data },
+    });
+  }
+  messageContent.push({ type: "text", text: textBlock });
 
   try {
     const casosContext = await buildCasosContext();
@@ -104,11 +122,8 @@ export async function POST(req: NextRequest) {
     const response = await client.messages.create({
       model: "claude-opus-4-6",
       max_tokens: 4096,
-      system: REPORT_SYSTEM_PROMPT + casosContext,
-      messages: [{
-        role: "user",
-        content: `Espacio: ${spaceLabel}\n\nCUESTIONARIO DE PROYECTO (respondido por el cliente):\n\n${briefText}`,
-      }],
+      system: REPORT_SYSTEM_PROMPT + (image ? "\n\nAdemás del cuestionario, se adjunta una fotografía del espacio. Analízala para enriquecer el diagnóstico con observaciones visuales concretas." : "") + casosContext,
+      messages: [{ role: "user", content: messageContent }],
     });
 
     const content = response.content[0];
