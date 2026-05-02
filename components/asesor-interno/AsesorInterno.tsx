@@ -257,6 +257,16 @@ export default function AsesorInterno() {
   const [prompt,         setPrompt]         = useState("");
   const [error,          setError]          = useState("");
 
+  // PDF report
+  const [generatingPdf,  setGeneratingPdf]  = useState(false);
+  const [pdfError,       setPdfError]       = useState("");
+  const [pdfDone,        setPdfDone]        = useState(false);
+
+  // Design prompt (Midjourney / DALL-E)
+  const [generatingDesign, setGeneratingDesign] = useState(false);
+  const [designPrompt,     setDesignPrompt]     = useState("");
+  const [designError,      setDesignError]      = useState("");
+
   const sectionQuestions = QUESTIONS.filter((q) => q.section === currentSection);
   const sectionColor     = SECTIONS[currentSection].color;
   const isLast           = currentSection === SECTIONS.length - 1;
@@ -294,6 +304,71 @@ export default function AsesorInterno() {
     setPhase("questionnaire");
     setPrompt("");
     setError("");
+    setPdfError("");
+    setPdfDone(false);
+    setDesignPrompt("");
+    setDesignError("");
+  };
+
+  const handleGeneratePdf = async () => {
+    setGeneratingPdf(true);
+    setPdfError("");
+    setPdfDone(false);
+    try {
+      const res = await fetch("/api/admin/generate-report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answers }),
+      });
+      if (!res.ok) {
+        const data = await res.json() as { error?: string };
+        throw new Error(data.error ?? "Error al generar el reporte");
+      }
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      const slug = (answers.nombre_proyecto ?? "reporte").toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+      a.href     = url;
+      a.download = `reporte-acustico-${slug}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setPdfDone(true);
+    } catch (err) {
+      setPdfError((err as Error).message);
+    } finally {
+      setGeneratingPdf(false);
+    }
+  };
+
+  const handleGenerateDesignPrompt = async () => {
+    setGeneratingDesign(true);
+    setDesignError("");
+    setDesignPrompt("");
+    try {
+      const questionnaire = {
+        projectName: answers.nombre_proyecto,
+        workTypes:   answers.uso_principal ? [answers.uso_principal] : undefined,
+        peopleCount: answers.personas,
+        aesthetics:  answers.estilo_visual ? [answers.estilo_visual] : undefined,
+        budgetRange: answers.presupuesto,
+        specificNotes: [answers.colores_materiales, answers.referencias, answers.restricciones_arq]
+          .filter(Boolean).join(". ") || undefined,
+      };
+      const res  = await fetch("/api/prompt-diseno", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ spaceLabel: answers.tipo_espacio ?? "Estudio", questionnaire }),
+      });
+      const data = await res.json() as { prompt?: string; error?: string };
+      if (!res.ok || data.error) throw new Error(data.error ?? "Error al generar prompt");
+      setDesignPrompt(data.prompt ?? "");
+    } catch (err) {
+      setDesignError((err as Error).message);
+    } finally {
+      setGeneratingDesign(false);
+    }
   };
 
   // ── Result phase ──
@@ -435,6 +510,124 @@ export default function AsesorInterno() {
         <p className="text-[10px] text-center" style={{ color: MUTED }}>
           Completa los campos obligatorios (<span style={{ color: sectionColor }}>*</span>) para continuar
         </p>
+      )}
+
+      {/* ── Admin actions (last section only) ── */}
+      {isLast && (
+        <div className="flex flex-col gap-3 pt-2">
+          <div
+            className="px-4 py-2 rounded-lg text-[10px] font-bold uppercase tracking-widest text-center"
+            style={{ backgroundColor: `${CYAN}10`, border: `1px solid ${CYAN}20`, color: `${CYAN}80` }}
+          >
+            Acciones de admin — sin pago
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            {/* Generar reporte PDF */}
+            <button
+              onClick={handleGeneratePdf}
+              disabled={generatingPdf || generatingDesign}
+              className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all"
+              style={{
+                backgroundColor: generatingPdf ? `${CYAN}30` : CYAN,
+                color: BG,
+                opacity: generatingDesign ? 0.4 : 1,
+                cursor: generatingPdf || generatingDesign ? "not-allowed" : "pointer",
+                boxShadow: generatingPdf ? "none" : `0 4px 16px ${CYAN}35`,
+              }}
+            >
+              {generatingPdf ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke={`${BG}60`} strokeWidth="2.5"/>
+                    <path d="M12 2a10 10 0 0 1 10 10" stroke={BG} strokeWidth="2.5" strokeLinecap="round"/>
+                  </svg>
+                  Generando…
+                </>
+              ) : (
+                <>
+                  <svg viewBox="0 0 18 18" fill="none" className="w-4 h-4">
+                    <path d="M4 2h7l4 4v10a1 1 0 01-1 1H4a1 1 0 01-1-1V3a1 1 0 011-1z" stroke={BG} strokeWidth="1.5"/>
+                    <path d="M11 2v4h4M6 10h6M6 13h4" stroke={BG} strokeWidth="1.4" strokeLinecap="round"/>
+                  </svg>
+                  Reporte PDF
+                </>
+              )}
+            </button>
+
+            {/* Generar prompt de diseño */}
+            <button
+              onClick={handleGenerateDesignPrompt}
+              disabled={generatingDesign || generatingPdf}
+              className="flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all"
+              style={{
+                backgroundColor: generatingDesign ? `${AMBER}30` : `${AMBER}18`,
+                border: `1px solid ${generatingDesign ? AMBER : `${AMBER}40`}`,
+                color: AMBER,
+                opacity: generatingPdf ? 0.4 : 1,
+                cursor: generatingDesign || generatingPdf ? "not-allowed" : "pointer",
+              }}
+            >
+              {generatingDesign ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke={`${AMBER}30`} strokeWidth="2.5"/>
+                    <path d="M12 2a10 10 0 0 1 10 10" stroke={AMBER} strokeWidth="2.5" strokeLinecap="round"/>
+                  </svg>
+                  Generando…
+                </>
+              ) : (
+                <>
+                  <svg viewBox="0 0 18 18" fill="none" className="w-4 h-4">
+                    <path d="M9 2l2 5h5L12 10l1.5 5L9 12l-4.5 3L6 10 2 7h5z" stroke={AMBER} strokeWidth="1.5" strokeLinejoin="round"/>
+                  </svg>
+                  Prompt de diseño
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* PDF feedback */}
+          {pdfDone && !pdfError && (
+            <p className="text-xs px-3 py-2 rounded-lg text-center"
+              style={{ backgroundColor: `${GREEN}15`, color: GREEN, border: `1px solid ${GREEN}30` }}>
+              PDF descargado correctamente
+            </p>
+          )}
+          {pdfError && (
+            <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: `${RED}15`, color: RED }}>
+              {pdfError}
+            </p>
+          )}
+          {designError && (
+            <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: `${RED}15`, color: RED }}>
+              {designError}
+            </p>
+          )}
+
+          {/* Design prompt result */}
+          {designPrompt && (
+            <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${AMBER}35` }}>
+              <div className="px-4 py-2.5 flex items-center justify-between"
+                style={{ backgroundColor: `${AMBER}12`, borderBottom: `1px solid ${AMBER}25` }}>
+                <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: AMBER }}>
+                  Prompt de diseño — Midjourney / DALL-E
+                </span>
+                <button
+                  onClick={() => navigator.clipboard.writeText(designPrompt)}
+                  className="text-xs font-bold px-3 py-1 rounded-lg"
+                  style={{ backgroundColor: `${AMBER}20`, color: AMBER, border: `1px solid ${AMBER}35` }}
+                >
+                  Copiar
+                </button>
+              </div>
+              <div className="px-4 py-3 text-xs leading-relaxed font-mono"
+                style={{ backgroundColor: `${AMBER}06`, color: CREAM }}>
+                {designPrompt}
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

@@ -137,57 +137,106 @@ function RingsLogo({ size = 40 }: { size?: number }) {
 
 // ── Splash ────────────────────────────────────────────────────────────────────
 
-function SplashScreen({ fading }: { fading: boolean }) {
-  return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 9999,
-        backgroundColor: BG,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        transition: "opacity 0.8s ease-out",
-        opacity: fading ? 0 : 1,
-        pointerEvents: fading ? "none" : "auto",
-      }}
-    >
-      {/* Ripple rings container */}
-      <div style={{ position: "relative", width: 160, height: 160, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        {[0, 0.55, 1.1, 1.65].map((delay, i) => (
-          <div
-            key={i}
-            style={{
-              position: "absolute",
-              width: "100%",
-              height: "100%",
-              borderRadius: "50%",
-              border: `1.5px solid ${CYAN}`,
-              animation: `splash-ripple 2.2s ease-out ${delay}s infinite`,
-            }}
-          />
-        ))}
-        <RingsLogo size={60} />
-      </div>
+const SPLASH_PHRASES = [
+  "El sonido tiene forma",
+  "Tu espacio tiene potencial",
+  "La acústica es ciencia y arte",
+  "Acustega AI está lista",
+];
 
-      <p
+function SplashScreen({ onDone }: { onDone: () => void }) {
+  const [phraseIdx,     setPhraseIdx]     = useState(0);
+  const [phraseVisible, setPhraseVisible] = useState(true);
+  const [fading,        setFading]        = useState(false);
+
+  useEffect(() => {
+    const t: ReturnType<typeof setTimeout>[] = [];
+
+    // Cycle phrases 1 → 3, each at 1500ms intervals
+    [1, 2, 3].forEach((i) => {
+      t.push(setTimeout(() => setPhraseVisible(false),                      i * 1500 - 300));
+      t.push(setTimeout(() => { setPhraseIdx(i); setPhraseVisible(true); }, i * 1500));
+    });
+
+    // After 4th phrase (6000ms total): fade out splash
+    t.push(setTimeout(() => setPhraseVisible(false), 4 * 1500 - 300)); // 5700ms
+    t.push(setTimeout(() => setFading(true),         4 * 1500));       // 6000ms
+    t.push(setTimeout(() => onDone(),                4 * 1500 + 800)); // 6800ms
+
+    return () => t.forEach(clearTimeout);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <>
+      <style>{`
+        @keyframes splash-ripple {
+          0%   { transform: scale(0.12); opacity: 0.9; }
+          100% { transform: scale(1);    opacity: 0;   }
+        }
+      `}</style>
+      <div
         style={{
-          fontFamily: "var(--font-outfit)",
-          fontWeight: 700,
-          fontSize: 17,
-          letterSpacing: "0.22em",
-          color: CYAN,
-          marginTop: 28,
+          position: "fixed",
+          inset: 0,
+          zIndex: 9999,
+          backgroundColor: BG,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          transition: "opacity 0.8s ease-out",
+          opacity: fading ? 0 : 1,
+          pointerEvents: fading ? "none" : "auto",
         }}
       >
-        ACUSTEGA<span style={{ color: AMBER }}>AI</span>
-      </p>
-      <p style={{ fontSize: 11, letterSpacing: "0.14em", color: MUTED, marginTop: 6 }}>
-        Inteligencia Acústica
-      </p>
-    </div>
+        {/* Animated concentric rings */}
+        <div style={{ position: "relative", width: 160, height: 160, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {[0, 0.55, 1.1, 1.65].map((delay, i) => (
+            <div
+              key={i}
+              style={{
+                position: "absolute",
+                width: "100%",
+                height: "100%",
+                borderRadius: "50%",
+                border: `1.5px solid ${CYAN}`,
+                animation: `splash-ripple 2.2s ease-out ${delay}s infinite`,
+              }}
+            />
+          ))}
+          <RingsLogo size={60} />
+        </div>
+
+        {/* Wordmark */}
+        <p
+          style={{
+            fontFamily: "var(--font-outfit)",
+            fontWeight: 700,
+            fontSize: 17,
+            letterSpacing: "0.22em",
+            color: CYAN,
+            marginTop: 28,
+          }}
+        >
+          ACUSTEGA<span style={{ color: AMBER }}>AI</span>
+        </p>
+
+        {/* Rotating phrase */}
+        <p
+          style={{
+            fontSize: 13,
+            color: MUTED,
+            marginTop: 20,
+            fontStyle: "italic",
+            letterSpacing: "0.02em",
+            transition: "opacity 0.3s ease",
+            opacity: phraseVisible ? 1 : 0,
+          }}
+        >
+          {SPLASH_PHRASES[phraseIdx]}
+        </p>
+      </div>
+    </>
   );
 }
 
@@ -195,18 +244,11 @@ function SplashScreen({ fading }: { fading: boolean }) {
 
 export default function Home() {
   const router = useRouter();
-  const [splashFading, setSplashFading] = useState(false);
-  const [splashDone,   setSplashDone]   = useState(false);
-
-  useEffect(() => {
-    const t1 = setTimeout(() => setSplashFading(true), 2500);
-    const t2 = setTimeout(() => setSplashDone(true),   3300);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, []);
+  const [splashDone, setSplashDone] = useState(false);
 
   return (
     <>
-      {!splashDone && <SplashScreen fading={splashFading} />}
+      {!splashDone && <SplashScreen onDone={() => setSplashDone(true)} />}
       <style>{`
         @keyframes fade-up {
           from { opacity: 0; transform: translateY(20px); }
@@ -215,10 +257,6 @@ export default function Home() {
         @keyframes pulse-ring {
           0%, 100% { opacity: 0.4; transform: scale(1); }
           50%       { opacity: 0.15; transform: scale(1.04); }
-        }
-        @keyframes splash-ripple {
-          0%   { transform: scale(0.12); opacity: 0.9; }
-          100% { transform: scale(1);    opacity: 0;   }
         }
         .fade-up { animation: fade-up 0.7s ease-out both; }
       `}</style>
