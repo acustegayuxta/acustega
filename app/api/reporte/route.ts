@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { jsPDF } from "jspdf";
+import { supabase } from "@/lib/supabase";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -422,6 +423,36 @@ function parseReportJson(raw: string): ReportData {
   }
 }
 
+// ── Case studies context loader ───────────────────────────────────────────────
+
+async function buildCasosContext(): Promise<string> {
+  try {
+    const { data } = await supabase
+      .from("casos_estudio")
+      .select("nombre_proyecto,ciudad,tipo_espacio,dimensiones,materiales_acusticos,resultado_medicion,problemas_encontrados,solucion_aplicada,fecha_proyecto")
+      .order("fecha_proyecto", { ascending: false })
+      .limit(10);
+
+    if (!data || data.length === 0) return "";
+
+    const lines = data.map((c, i) => {
+      const parts = [
+        `Caso ${i + 1}: ${c.nombre_proyecto} — ${c.ciudad} (${c.tipo_espacio})`,
+        c.dimensiones          ? `  Dimensiones: ${c.dimensiones}`                     : null,
+        c.materiales_acusticos ? `  Materiales: ${c.materiales_acusticos}`              : null,
+        c.resultado_medicion   ? `  Resultado: ${c.resultado_medicion}`                 : null,
+        c.problemas_encontrados? `  Problemas: ${c.problemas_encontrados}`              : null,
+        c.solucion_aplicada    ? `  Solución: ${c.solucion_aplicada}`                   : null,
+      ].filter(Boolean);
+      return parts.join("\n");
+    });
+
+    return `\n\nREFERENCIA — Proyectos reales ejecutados por Acustega:\n${lines.join("\n\n")}`;
+  } catch {
+    return "";
+  }
+}
+
 // ── Route handler ────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -455,10 +486,12 @@ export async function POST(req: NextRequest) {
     .join("\n\n");
 
   try {
+    const casosContext = await buildCasosContext();
+
     const response = await client.messages.create({
       model: "claude-opus-4-6",
       max_tokens: 4096,
-      system: SYSTEM_PROMPT,
+      system: SYSTEM_PROMPT + casosContext,
       messages: [{ role: "user", content: `Espacio: ${spaceLabel}\n\nConversación:\n${conversationText}` }],
     });
 
