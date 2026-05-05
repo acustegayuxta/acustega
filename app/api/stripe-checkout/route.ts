@@ -10,21 +10,27 @@ const PRICE_IDS: Record<string, string | undefined> = {
 };
 
 export async function POST(req: NextRequest) {
-  const { product } = await req.json() as { product: string };
+  try {
+    const { product } = await req.json() as { product: string };
 
-  const priceId = PRICE_IDS[product];
-  if (!priceId) {
-    return NextResponse.json({ error: "Invalid product" }, { status: 400 });
+    const priceId = PRICE_IDS[product];
+    if (!priceId) {
+      return NextResponse.json({ error: "Invalid product" }, { status: 400 });
+    }
+
+    const origin = req.nextUrl.origin;
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: `${origin}/reporte?success=true&product=${product}`,
+      cancel_url: `${origin}/reporte?cancelled=true`,
+    });
+
+    return NextResponse.json({ url: session.url });
+  } catch (err) {
+    console.error("[stripe-checkout] Error:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  const origin = req.nextUrl.origin;
-
-  const session = await stripe.checkout.sessions.create({
-    mode: "payment",
-    line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${origin}/reporte?success=true&product=${product}`,
-    cancel_url: `${origin}/reporte?cancelled=true`,
-  });
-
-  return NextResponse.json({ url: session.url });
 }
