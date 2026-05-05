@@ -40,7 +40,7 @@ function PasswordGate({ onAuth }: { onAuth: () => void }) {
       });
       const data = await res.json() as { ok: boolean };
       if (data.ok) {
-        sessionStorage.setItem("acustega_admin_auth", "true");
+        sessionStorage.setItem("acustega_dashboard_auth", "true");
         onAuth();
       } else {
         setError("Contraseña incorrecta");
@@ -210,7 +210,7 @@ export default function AdminPage() {
   const [generatedPrompt, setGeneratedPrompt] = useState("");
 
   useEffect(() => {
-    const isAuth = sessionStorage.getItem("acustega_admin_auth") === "true";
+    const isAuth = sessionStorage.getItem("acustega_dashboard_auth") === "true";
     setAuthenticated(isAuth);
     setCheckingAuth(false);
   }, []);
@@ -237,7 +237,7 @@ export default function AdminPage() {
           <span className="text-xs ml-2" style={{ color: MUTED }}>Admin</span>
         </div>
         <button
-          onClick={() => { sessionStorage.removeItem("acustega_admin_auth"); setAuthenticated(false); }}
+          onClick={() => { sessionStorage.removeItem("acustega_dashboard_auth"); setAuthenticated(false); }}
           className="text-xs transition-colors"
           style={{ color: `${MUTED}80` }}
           onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = MUTED)}
